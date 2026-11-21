@@ -68,11 +68,17 @@ def inspect_package(filename: Path) -> None:
     root = Path(__file__).resolve().parent.parent
     privacy = (root / "PRIVACY.md").read_text(encoding="utf-8")
     listing = (root / "store/EDGE_LISTING.zh-CN.md").read_text(encoding="utf-8")
+    english = (root / "store/EDGE_LISTING.en.md").read_text(encoding="utf-8")
     assert "chrome.storage.sync" in privacy and "Cookie" in privacy
     assert "## 商店详细介绍" in listing and "## 推荐类别" in listing
     body = listing.split("## 商店详细介绍", 1)[1].split("## 推荐类别", 1)[0].strip()
-    assert 250 <= len(body) <= 10_000, "Edge store description must contain 250-10000 characters"
-    print(f"PASS: Edge ZIP verified ({filename.name}, {manifest['version']}, {len(names)} files, store copy {len(body)} chars)")
+    assert 250 <= len(body) <= 10_000, "Chinese Edge listing must contain 250-10000 characters"
+    assert "## Full description" in english and "## Store category" in english
+    en_body = english.split("## Full description", 1)[1].split("## Store category", 1)[0].strip()
+    assert 250 <= len(en_body) <= 10_000, "English Edge listing must contain 250-10000 characters"
+    assert localized["zh_CN"]["extensionName"]["message"] in listing
+    assert localized["en"]["extensionName"]["message"] in english
+    print(f"PASS: Edge ZIP verified ({filename.name}, {manifest['version']}, {len(names)} files, Chinese {len(body)} / English {len(en_body)} chars)")
 
 
 def main() -> int:
