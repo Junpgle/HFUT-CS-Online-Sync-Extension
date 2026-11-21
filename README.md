@@ -44,7 +44,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 
 ## 自动识别规则
 
-只在站点 `saltgardenia.github.io/HFUT-CS-Online/`（以及已配置的本地开发地址）运行。
+只在站点 `https://saltgardenia.github.io/HFUT-CS-Online/` 运行。
 
 - 做题记录：读取本网站 `localStorage` 中精确匹配 `practice-progress-v1`、`课程代号-practice-progress-v1` 的数据；仅接受 `right`、`wrong`、`revealed` 三种值。
 - 阅读记录：记录站内非 `practice`、非 `attachments` 的课程页面路径，例如 `#/net/deck/ch4`、`#/os/chapter/ch2` 等。
@@ -54,7 +54,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 ## 数据保护与限制
 
 - 只获得浏览器 `storage`、`activeTab` 权限，以及此网站的受限访问权限；无额外第三方服务器、无 Cookie 访问权限。
-- Chrome / Edge 的 `storage.sync` 存在总量约 100 KiB、每项约 8 KiB 的配额及写入速率限制。题库很大时可能超额，扩展会保留本地数据、显示同步失败提醒，支持导出 JSON。
+- Chrome / Edge 的 `storage.sync` 存在总量约 100 KiB、每项约 8 KiB 的配额及写入速率方面的限制。题库很大时可能超额，扩展会保留本地数据、显示同步失败提醒，支持导出 JSON。
 - 各课程题目按哈希分成 16 个分片，以减小单项数据体积。
 - 读取远端同步结果后，扩展不会在正在使用的答题页内直接篡改 React 内存状态；如其他设备有更新，请刷新当前答题页面。
 - 当前版本已通过模拟双设备与课程停用/恢复场景测试；不同浏览器账号与网络环境下仍需按实际情况验证同步传播速度。
@@ -69,6 +69,38 @@ node --check content.js
 node --check popup.js
 node tests/test-shared.cjs
 node tests/test-content.cjs
+node tests/test-popup.cjs
 ```
 
 源码结构：`manifest.json` 扩展清单、`shared.js` 数据结构/合并规则、`content.js` 自动同步与阅读检测、`popup.html/css/js` 操作面板、`icons/` 图标、`tests/` 回归检查。
+
+## Microsoft Edge 加载项商店发布
+
+扩展支持使用 Microsoft Edge Partner Center 发布。**不需要修改原网站。**
+
+- [隐私政策（公开 URL）](PRIVACY.md)
+- [简体中文商店文案、关键词与图片尺寸](store/EDGE_LISTING.zh-CN.md)
+- [权限说明、数据使用申报与审核测试备注](store/EDGE_CERTIFICATION.md)
+- [Microsoft 官方发布指引](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension)
+
+在仓库根目录执行以下命令即可构建并验证商店专用 ZIP（需 Python 3.9+，无第三方依赖）：
+
+```bash
+python scripts/package_edge.py
+python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.1.1.zip
+```
+
+生成的 ZIP 中 **`manifest.json` 位于根目录**，仅包含运行所需文件；不会把 README、测试脚本、GitHub 配置、私钥或开发标识打包进去。源码 `manifest.json` 的公开 `key` 为本地解压安装时的扩展 ID 保持稳定，商店包会排除它，Edge 商店负责分配商店安装 ID。
+
+**无需手动打包的方式**：前往仓库 [Actions → Extension checks](https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension/actions/workflows/check.yml)，选择最新一次成功运行，下载构建产物 **Edge-Addons-Upload-Package**；解压该 Actions 产物后，会获得要上传到 Partner Center 的 ZIP 文件。不要直接把 GitHub 「Code → Download ZIP」作为商店安装包上传。
+
+上架时选择简体中文商品资料，复制 `store/EDGE_LISTING.zh-CN.md` 的正文；按 `store/EDGE_CERTIFICATION.md` 填写权限理由、隐私和审核备注。**图片需要在 Partner Center 独立上传**：现有 `icons/icon128.png` 满足 128×128 的最小商店 Logo 尺寸要求；商店建议准备 300×300 Logo。真实功能截图由维护者自行制作，推荐 1280×800 或 640×480，最多 6 张。
+
+当前扩展与 HFUT-CS-Online、合肥工业大学和 Microsoft 均无官方从属关系。审核是否通过由 Microsoft 决定。
+
+### 发布前最后检查
+
+- 扩展包已通过自动化语法、双设备模拟、容量/停用恢复测试和 ZIP 包验证。
+- 用 Edge 实机加载当前源码，确认题目、阅读位置、导入导出和课程清除均正常。
+- 检查隐私政策、描述、截图和开发者公开资料是否准确。
+- 登录 [Partner Center](https://partner.microsoft.com/dashboard) 上传 **发布专用 ZIP**，补充截图和商店 Logo，完成审核提交。
