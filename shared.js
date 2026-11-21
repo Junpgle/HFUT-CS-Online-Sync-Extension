@@ -1,133 +1,211 @@
-/* Shared, dependency-free helpers used by the content script and popup. */
+/* Data contract for HFUT-CS-Online Sync (MV3); intentionally no network access. */
 (function (root) {
   'use strict';
-  const PREFIX = 'hfutnet_v1_';
-  const ANSWER_PREFIX = PREFIX + 'answers_';
-  const READING_KEY = PREFIX + 'reading';
-  const DEVICE_STATE_KEY = PREFIX + 'device_state';
-  const SITE_KEY = 'net-practice-progress-v1';
+  const PREFIX = 'hfutsite_v2_';
+  const STATE_KEY = PREFIX + 'local_state';
+  const LAST_SUCCESS = PREFIX + 'last_success';
+  const LAST_ERROR = PREFIX + 'last_error';
+  const QUIZ_PREFIX = PREFIX + 'q_';
+  const READ_PREFIX = PREFIX + 'read_';
   const SITE_URL = 'https://saltgardenia.github.io/HFUT-CS-Online/';
   const VALID = new Set(['right', 'wrong', 'revealed']);
-  const MAX_ANSWERS = 1200;
-  const CHAPTERS = ['概论', '计算机网络体系结构', '物理层', '数据链路层', '网络层', '传输层', '应用层'];
-
-  function isPlainObject(x) { return x !== null && typeof x === 'object' && !Array.isArray(x); }
-  function paperOf(qid) {
-    return typeof qid === 'string' && /^paper-\d{4}:[a-zA-Z0-9_-]{1,40}$/.test(qid)
-      ? qid.split(':')[0] : null;
+  const MAX_Q = 5000, SHARDS = 16, MAX_READ = 40;
+  const TITLES = {
+    algo:'算法设计与分析', os:'操作系统', net:'计算机网络', math:'高等数学',
+    ca:'计算机体系结构', db:'数据库系统', se:'软件工程', st:'软件测试',
+    phys:'大学物理', pat:'程序设计艺术与方法', ai:'人工智能原理',
+    pd:'程序设计基础', sa:'软件体系结构', hd:'系统硬件综合设计'
+  };
+  const object = x => x != null && typeof x === 'object' && !Array.isArray(x);
+  const courseValid = x => typeof x === 'string' && /^[a-z][a-z0-9-]{1,17}$/.test(x);
+  function courseOfKey(key) {
+    if (key === 'practice-progress-v1') return 'algo';
+    const m = /^([a-z][a-z0-9-]{1,17})-practice-progress-v1$/.exec(key || '');
+    return m ? m[1] : null;
   }
-  function parseSiteAnswers(raw) {
-    let parsed;
-    try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return {}; }
-    if (!isPlainObject(parsed)) return {};
-    const cleaned = {};
-    for (const [id, value] of Object.entries(parsed).slice(0, MAX_ANSWERS)) {
-      if (paperOf(id) && VALID.has(value)) cleaned[id] = value;
+  function keyOfCourse(c) { return c === 'algo' ? 'practice-progress-v1' : c + '-practice-progress-v1'; }
+  function questionValid(id) { return typeof id === 'string' && /^[A-Za-z0-9:_-]{1,130}$/.test(id); }
+  function sanitizeAnswers(raw) {
+    let parsed = raw;
+    if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch { return {}; } }
+    if (!object(parsed)) return {};
+    const out = {};
+    for (const [id, v] of Object.entries(parsed).slice(0, MAX_Q)) {
+      if (questionValid(id) && VALID.has(v)) out[id] = v;
     }
-    return cleaned;
+    return out;
   }
-  function normalizedRecord(x) {
-    if (!isPlainObject(x)) return null;
-    if (!(x.v === null || VALID.has(x.v))) return null;
-    if (!Number.isFinite(x.t) || x.t < 0 || x.t > 9e15) return null;
-    if (typeof x.d !== 'string' || x.d.length > 96) return null;
-    return { v: x.v, t: x.t, d: x.d };
+  function cleanRecord(r) {
+    if (!object(r) || !(r.v === null || VALID.has(r.v)) ||
+      !Number.isFinite(r.t) || r.t < 0 || r.t > 9e15 || typeof r.d !== 'string' || r.d.length > 90) return null;
+    return { v:r.v, t:r.t, d:r.d };
   }
   function sanitizeRecords(raw) {
-    if (!isPlainObject(raw)) return {};
-    const result = {};
-    for (const [id, record] of Object.entries(raw).slice(0, MAX_ANSWERS)) {
-      if (!paperOf(id)) continue;
-      const good = normalizedRecord(record);
-      if (good) result[id] = good;
+    if (!object(raw)) return {};
+    const out = {};
+    for (const [k,v] of Object.entries(raw).slice(0,MAX_Q)) {
+      const r = questionValid(k) ? cleanRecord(v) : null;
+      if (r) out[k] = r;
     }
-    return result;
+    return out;
   }
-  function compareRecord(a, b) {
+  function compareRecord(a,b) {
     if (!a) return -1;
     if (!b) return 1;
-    return a.t !== b.t ? Math.sign(a.t - b.t) :
-      a.d !== b.d ? (a.d < b.d ? -1 : 1) :
-      String(a.v).localeCompare(String(b.v));
+    if (a.t !== b.t) return Math.sign(a.t-b.t);
+    if (a.d !== b.d) return a.d < b.d ? -1 : 1;
+    return String(a.v).localeCompare(String(b.v));
   }
-  function mergeRecords(a, b) {
-    const result = { ...sanitizeRecords(a) };
-    for (const [key, value] of Object.entries(sanitizeRecords(b))) {
-      if (compareRecord(result[key], value) < 0) result[key] = value;
+  function mergeRecords(a,b) {
+    const out = sanitizeRecords(a);
+    for (const [k,v] of Object.entries(sanitizeRecords(b))) {
+      if (compareRecord(out[k],v)<0) out[k]=v;
     }
-    return result;
+    return out;
   }
-  function detectLocalChanges(previous, current, device, time) {
-    const result = {};
-    const keys = new Set([...Object.keys(previous || {}), ...Object.keys(current || {})]);
-    let offset = 0;
-    for (const key of keys) {
-      if (!paperOf(key) || previous?.[key] === current?.[key]) continue;
-      result[key] = { v: current?.[key] ?? null, t: time + offset++, d: device };
+  function mergeAll(a,b) {
+    const out = {};
+    for (const c of new Set([...Object.keys(a||{}),...Object.keys(b||{})])) {
+      if (courseValid(c)) out[c] = mergeRecords(a?.[c],b?.[c]);
     }
-    return result;
+    return out;
   }
-  function materializeAnswers(records) {
-    const result = {};
-    for (const [key, record] of Object.entries(sanitizeRecords(records))) {
-      if (record.v !== null) result[key] = record.v;
+  function changes(oldAnswers,newAnswers,device,t) {
+    const old = sanitizeAnswers(oldAnswers), cur = sanitizeAnswers(newAnswers);
+    const out = {}; let i=0;
+    for (const q of new Set([...Object.keys(old),...Object.keys(cur)])) {
+      if (old[q]!==cur[q]) out[q]={v:cur[q]??null,t:t+(i++),d:device};
     }
-    return result;
+    return out;
   }
-  function canonical(obj) {
-    return JSON.stringify(Object.fromEntries(Object.entries(obj || {}).sort(([a], [b]) => a.localeCompare(b))));
+  function actualAnswers(records) {
+    const out={};
+    for(const [q,r] of Object.entries(sanitizeRecords(records))) if(r.v!==null)out[q]=r.v;
+    return out;
   }
-  function splitPapers(records) {
-    const grouped = {};
-    for (const [id, value] of Object.entries(sanitizeRecords(records))) {
-      const paper = paperOf(id);
-      (grouped[paper] ??= {})[id] = value;
+  function stable(o) {
+    return JSON.stringify(Object.fromEntries(Object.entries(o||{}).sort(([a],[b])=>a.localeCompare(b))));
+  }
+  function hash(str) {
+    let h=2166136261;
+    for(let i=0;i<str.length;i++) { h^=str.charCodeAt(i);h=Math.imul(h,16777619); }
+    return h>>>0;
+  }
+  function quizKey(course,part) { return QUIZ_PREFIX + course + '_' + part.toString(16); }
+  function readKey(course) { return READ_PREFIX + course; }
+  function courseOfCloudQuizKey(key) {
+    const m = new RegExp('^' + QUIZ_PREFIX + '([a-z][a-z0-9-]{1,17})_([0-9a-f])$').exec(key||'');
+    return m ? m[1] : null;
+  }
+  function shardCourse(records) {
+    const out={};
+    for(const [qid,r] of Object.entries(sanitizeRecords(records))) {
+      const h=hash(qid)%SHARDS;
+      (out[h]??={})[qid]=r;
     }
-    for (const p of Object.keys(grouped)) grouped[p] = Object.fromEntries(Object.entries(grouped[p]).sort());
-    return grouped;
+    return out;
   }
-  function cloudAnswers(map) {
-    let records = {};
-    for (const [key, val] of Object.entries(map || {})) {
-      if (!key.startsWith(ANSWER_PREFIX)) continue;
-      if (!/^paper-\d{4}$/.test(key.slice(ANSWER_PREFIX.length))) continue;
-      records = mergeRecords(records, val?.entries || {});
+  function cloudQuiz(all) {
+    const out={};
+    for(const [key,v] of Object.entries(all||{})) {
+      const c=courseOfCloudQuizKey(key);
+      if (!c) continue;
+      const bucket=Number.parseInt(key.slice(-1),16);
+      const valid=Object.fromEntries(Object.entries(sanitizeRecords(v?.entries)).filter(([q])=>hash(q)%SHARDS===bucket));
+      out[c]=mergeRecords(out[c],valid);
     }
-    return records;
+    return out;
+  }
+  function courseOfRoute(route) {
+    if(typeof route !== 'string' || route.length>200 || !/^#\/[a-z][a-z0-9/-]*$/.test(route)) return null;
+    const c=route.split('/')[1];
+    if(!courseValid(c) || ['course','preview','practice'].includes(c)) return null;
+    if(route.split('/').some(p=>p==='practice'||p==='attachments')) return null;
+    return c;
+  }
+  function routeFromHash(hash) {
+    const route=(hash||'').split('?')[0];
+    return courseOfRoute(route) ? route : null;
   }
   function cleanReading(raw) {
-    const out = {};
-    if (!isPlainObject(raw)) return out;
-    for (const [k, v] of Object.entries(raw)) {
-      if (!/^ch[1-7]$/.test(k) || !isPlainObject(v) || !Number.isFinite(v.updated)) continue;
-      out[k] = {
-        percent: Math.max(0, Math.min(100, Number(v.percent) || 0)),
-        y: Math.max(0, Math.min(2000000, Number(v.y) || 0)),
-        section: typeof v.section === 'string' && /^[A-Za-z0-9_-]{1,90}$/.test(v.section) ? v.section : null,
-        updated: Math.max(0, v.updated),
-        d: typeof v.d === 'string' ? v.d.slice(0, 96) : '',
+    const out={};
+    if(!object(raw))return out;
+    for(const [route,r] of Object.entries(raw).slice(0,MAX_READ*4)) {
+      if(!courseOfRoute(route)||!object(r)||!Number.isFinite(r.updated)||r.updated<0||r.updated>9e15)continue;
+      out[route]={
+        percent:Math.min(100,Math.max(0,Number(r.percent)||0)),
+        y:Math.min(2e6,Math.max(0,Number(r.y)||0)),
+        section:typeof r.section==='string'&&/^[a-zA-Z0-9_-]{1,100}$/.test(r.section)?r.section:null,
+        title:typeof r.title==='string'?r.title.slice(0,90):'',
+        updated:r.updated,
+        d:typeof r.d==='string'?r.d.slice(0,90):''
       };
     }
     return out;
   }
-  function mergeReading(a, b) {
-    const result = cleanReading(a);
-    for (const [chapter, other] of Object.entries(cleanReading(b))) {
-      const own = result[chapter];
-      if (!own || other.updated > own.updated || (other.updated === own.updated && other.d > own.d)) {
-        result[chapter] = other;
+  function mergeReading(a,b) {
+    const out=cleanReading(a);
+    for(const [route,v] of Object.entries(cleanReading(b))) {
+      const old=out[route];
+      if(!old||v.updated>old.updated||(v.updated===old.updated&&v.d>old.d))out[route]=v;
+    }
+    const byCourse={};
+    for(const [route,v] of Object.entries(out)) {
+      const c=courseOfRoute(route);
+      (byCourse[c]??=[]).push([route,v]);
+    }
+    const limited={};
+    for(const rows of Object.values(byCourse)) {
+      rows.sort((a,b)=>b[1].updated-a[1].updated);
+      for(const [route,r] of rows.slice(0,MAX_READ))limited[route]=r;
+    }
+    return limited;
+  }
+  function cloudReading(all) {
+    let out={};
+    for(const [key,v] of Object.entries(all||{})) {
+      if(!key.startsWith(READ_PREFIX)||!courseValid(key.slice(READ_PREFIX.length)))continue;
+      out=mergeReading(out,v?.entries);
+    }
+    return out;
+  }
+  function groupedReading(reading) {
+    const groups={};
+    for(const [route,r] of Object.entries(cleanReading(reading))) {
+      const c=courseOfRoute(route);
+      (groups[c]??={})[route]=r;
+    }
+    return groups;
+  }
+  function migrateLegacy(cloud,device) {
+    // Old v1 keys are kept intact so users upgrading from the net-only build lose nothing.
+    const q={net:{}};
+    const prefix='hfutnet_v1_answers_';
+    for(const [key,obj] of Object.entries(cloud||{})) {
+      if(!key.startsWith(prefix))continue;
+      for(const [id,r] of Object.entries(obj?.entries||{})) {
+        if(!questionValid(id))continue;
+        const clean=cleanRecord(r);
+        if(clean)q.net[id]=clean;
       }
     }
-    return result;
+    let reading={};
+    for(const [id,r] of Object.entries(cloud?.hfutnet_v1_reading?.entries||{})) {
+      const route='#/net/deck/'+id;
+      if(!/^ch[1-7]$/.test(id)||!object(r))continue;
+      reading[route]={...r,title:TITLES.net+' · '+id,d:r.d||device};
+    }
+    return {quiz:q,reading:cleanReading(reading)};
   }
-  function readingUrl(chapter, record) {
-    const hash = `#/net/deck/${chapter}`;
-    return SITE_URL + hash + (record?.section ? `?s=${encodeURIComponent(record.section)}` : '');
+  function resumeUrl(route) {
+    if(!courseOfRoute(route))return SITE_URL+'#/'; 
+    return SITE_URL+route+'?hfut_sync_resume=1';
   }
-  root.HFUTNetSync = Object.freeze({
-    PREFIX, ANSWER_PREFIX, READING_KEY, DEVICE_STATE_KEY, SITE_KEY, SITE_URL, CHAPTERS,
-    paperOf, parseSiteAnswers, sanitizeRecords, mergeRecords, compareRecord,
-    detectLocalChanges, materializeAnswers, canonical, splitPapers,
-    cloudAnswers, cleanReading, mergeReading, readingUrl,
+  root.HFUTSiteSync=Object.freeze({
+    PREFIX,STATE_KEY,LAST_SUCCESS,LAST_ERROR,QUIZ_PREFIX,READ_PREFIX,SITE_URL,TITLES,
+    courseOfKey,keyOfCourse,questionValid,sanitizeAnswers,sanitizeRecords,
+    mergeRecords,mergeAll,changes,actualAnswers,stable,hash,quizKey,readKey,shardCourse,
+    cloudQuiz,courseOfCloudQuizKey,courseOfRoute,routeFromHash,cleanReading,mergeReading,
+    cloudReading,groupedReading,migrateLegacy,resumeUrl
   });
-})(typeof globalThis !== 'undefined' ? globalThis : this);
+})(typeof globalThis!=='undefined'?globalThis:this);
