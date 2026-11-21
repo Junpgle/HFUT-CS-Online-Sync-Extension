@@ -80,6 +80,7 @@ node tests/test-popup.cjs
 
 - [隐私政策（公开 URL）](PRIVACY.md)
 - [简体中文商店文案、关键词与图片尺寸](store/EDGE_LISTING.zh-CN.md)
+- [English Store Listing](store/EDGE_LISTING.en.md)
 - [权限说明、数据使用申报与审核测试备注](store/EDGE_CERTIFICATION.md)
 - [Microsoft 官方发布指引](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension)
 
@@ -87,8 +88,12 @@ node tests/test-popup.cjs
 
 ```bash
 python scripts/package_edge.py
-python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.1.1.zip
+python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.1.2.zip
 ```
+
+**语言本地化：** 自 v2.1.2 起，`manifest.json` 将 `default_locale` 设置为 `zh_CN`，并通过 `__MSG_extensionName__`、`__MSG_extensionDescription__` 等引用分别读取 `_locales/zh_CN/messages.json` 和 `_locales/en/messages.json`。这能让 Edge 商店识别 **简体中文 / English** 两种商品语言。扩展弹窗目前主要是中文界面，英文语言包覆盖扩展名称、简短说明和工具栏提示，并非全套界面翻译。
+
+在 Partner Center 的「Store Listings」中替换上传新版本 ZIP 后，应看到简体中文和英语两个语言项目。**两种语言都需要分别填写商店详细介绍并上传 Logo**；若只打算维护中文商品页，可以在后台移除英文商品语言项，扩展仍保留英文元数据的浏览器回退能力。商店支持同一个 Logo 复制到其他语言的条目，截图仍由你自行准备。
 
 生成的 ZIP 中 **`manifest.json` 位于根目录**，仅包含运行所需文件；不会把 README、测试脚本、GitHub 配置、私钥或开发标识打包进去。源码 `manifest.json` 的公开 `key` 为本地解压安装时的扩展 ID 保持稳定，商店包会排除它，Edge 商店负责分配商店安装 ID。
 
@@ -100,7 +105,7 @@ python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2
 
 ### 发布前最后检查
 
-- 扩展包已通过自动化语法、双设备模拟、容量/停用恢复测试和 ZIP 包验证。
+- 扩展包通过自动化语法、双设备模拟、容量/停用恢复测试、语言本地化及 ZIP 包验证后，CI 才会上传发布产物。
 - 用 Edge 实机加载当前源码，确认题目、阅读位置、导入导出和课程清除均正常。
 - 检查隐私政策、描述、截图和开发者公开资料是否准确。
 - 登录 [Partner Center](https://partner.microsoft.com/dashboard) 上传 **发布专用 ZIP**，补充截图和商店 Logo，完成审核提交。
