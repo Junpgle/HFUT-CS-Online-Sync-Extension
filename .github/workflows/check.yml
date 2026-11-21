@@ -28,3 +28,17 @@ jobs:
         run: node tests/test-content.cjs
       - name: Quota and course management tests
         run: node tests/test-popup.cjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build Microsoft Edge store package
+        run: python scripts/package_edge.py
+      - name: Verify Microsoft Edge store package
+        run: python scripts/verify_edge_package.py dist/*.zip
+      - name: Upload validated Edge package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Edge-Addons-Upload-Package
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 30
