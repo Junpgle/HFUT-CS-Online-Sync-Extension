@@ -45,15 +45,32 @@
     await chrome.storage.local.set({ [S.STATE_KEY]: state });
   }
   function absorb(cloud) {
+    const oldDisabled = state.disabled || {};
+    state.disabled = S.disabledCourses(cloud);
+    // Re-enabled courses import the site's existing answers on the next observation.
+    for (const course of Object.keys(oldDisabled)) {
+      if (!state.disabled[course]) delete state.lastSite[course];
+    }
     state.records = S.mergeAll(state.records, S.cloudQuiz(cloud));
     state.reading = S.mergeReading(state.reading, S.cloudReading(cloud));
+    // Never retain a disabled course in the extension cache or publish it again.
+    for (const course of Object.keys(state.disabled)) {
+      delete state.records[course];
+      delete state.lastSite[course];
+      for (const route of Object.keys(state.reading)) {
+        if (S.courseOfRoute(route) === course) delete state.reading[route];
+      }
+    }
   }
-  async function publish(cloudFromCaller = null) {
-    const cloud = cloudFromCaller || await chrome.storage.sync.get(null);
+  async function publish() {
+    // Always re-read course controls just before saving, even if the caller has
+    // an older snapshot. This prevents most in-flight writes after a disable.
+    const cloud = await chrome.storage.sync.get(null);
     absorb(cloud);
     await saveLocal(); // local backup must survive even when cloud quota/rate limits fail
     const writes = {};
     for (const [course, rows] of Object.entries(state.records)) {
+      if (state.disabled[course]) continue;
       const shards = S.shardCourse(rows);
       for (const [part, entries] of Object.entries(shards)) {
         const key = S.quizKey(course, Number(part));
@@ -67,6 +84,7 @@
       }
     }
     for (const [course, entries] of Object.entries(S.groupedReading(state.reading))) {
+      if (state.disabled[course]) continue;
       const key = S.readKey(course);
       const existing = S.cleanReading(cloud[key]?.entries);
       if (S.stable(existing) === S.stable(entries)) continue;
@@ -85,6 +103,7 @@
     const initial = options.initial === true;
     let touchedActive = false, wrote = false;
     for (const [course, records] of Object.entries(state.records)) {
+      if (state.disabled[course]) continue;
       const desired = S.actualAnswers(records);
       const key = S.keyOfCourse(course);
       const current = S.sanitizeAnswers(localStorage.getItem(key));
@@ -107,6 +126,7 @@
   }
   function collectChanges(snapshot) {
     for (const [course, answers] of Object.entries(snapshot)) {
+      if (state.disabled[course]) continue;
       const baseline = state.lastSite[course] || {};
       const delta = S.changes(baseline, answers, state.deviceId, Date.now());
       if (Object.keys(delta).length) {
@@ -117,11 +137,11 @@
   }
   async function observe() {
     if (!state) return;
-    collectChanges(siteSnapshot());
     const cloud = await chrome.storage.sync.get(null);
-    absorb(cloud);
+    absorb(cloud); // controls first, before reading this device's site records
+    collectChanges(siteSnapshot());
     writeCloudToSite();
-    await publish(cloud);
+    await publish();
   }
   async function freshSync() {
     await observe();
@@ -144,7 +164,7 @@
   }
   async function recordReading(force = false) {
     const route = currentRoute();
-    if (!state || !route || window.scrollY < 110) return;
+    if (!state || !route || state.disabled[S.courseOfRoute(route)] || window.scrollY < 110) return;
     const now = Date.now();
     if (!force && now - lastReadingAt < 6500) return;
     const candidate = readingPosition(route);
@@ -196,6 +216,7 @@
       records: {},
       reading: S.cleanReading(stored?.reading),
       lastSite: hasBaseline && stored.lastSite && typeof stored.lastSite === 'object' ? stored.lastSite : {},
+      disabled: {},
     };
     state.records = S.mergeAll({},stored?.records||{});
     if (hasBaseline) {
@@ -211,7 +232,7 @@
     const cloud = await chrome.storage.sync.get(null);
     absorb(cloud);
     const applied = writeCloudToSite({initial:true});
-    await publish(cloud);
+    await publish();
     previousRoute = currentRoute();
     if (applied.changedActive) {
       // The React practice view may have read old results before asynchronous hydration.
@@ -219,13 +240,29 @@
       return;
     }
     chrome.storage.onChanged.addListener((changes,area) => {
-      if (area !== 'sync' || !Object.keys(changes).some(k => k.startsWith(S.QUIZ_PREFIX)||k.startsWith(S.READ_PREFIX))) return;
+      if (area !== 'sync' || !Object.keys(changes).some(k =>
+        k.startsWith(S.QUIZ_PREFIX) || k.startsWith(S.READ_PREFIX) ||
+        k.startsWith(S.DISABLE_PREFIX))) return;
       serial(async () => {
-        // Merge the old cloud snapshot too: concurrent writes of the same shard
-        // may otherwise erase one device's recently updated question.
+        // Preserve overwritten records during concurrent normal updates, but do
+        // NOT re-add the old value of a deliberately removed course storage key.
         const old = {};
-        for (const [key,val] of Object.entries(changes)) if (val.oldValue) old[key]=val.oldValue;
-        absorb(old);
+        for (const [key,val] of Object.entries(changes)) {
+          if (val.oldValue && val.newValue &&
+              (key.startsWith(S.QUIZ_PREFIX) || key.startsWith(S.READ_PREFIX))) {
+            old[key] = val.oldValue;
+          }
+        }
+        const fresh = await chrome.storage.sync.get(null);
+        const disabled = S.disabledCourses(fresh);
+        const earlierQuiz = S.cloudQuiz(old);
+        for (const course of Object.keys(earlierQuiz)) if (disabled[course]) delete earlierQuiz[course];
+        state.records = S.mergeAll(state.records, earlierQuiz);
+        const earlierReading = S.cloudReading(old);
+        for (const route of Object.keys(earlierReading)) {
+          if (disabled[S.courseOfRoute(route)]) delete earlierReading[route];
+        }
+        state.reading = S.mergeReading(state.reading, earlierReading);
         await observe();
       });
     });
