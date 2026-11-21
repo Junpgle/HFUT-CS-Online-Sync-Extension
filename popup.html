@@ -17,6 +17,14 @@
       <div class="statusrow"><span class="status-k">本机最近同步</span><span id="sync-time" class="status-v">—</span></div>
       <p id="status-msg" class="hint" role="status">同一浏览器账号下跨设备同步，网站无需改动。</p>
     </section>
+    <section class="panel quota-panel" aria-label="浏览器同步存储空间">
+      <div class="panel-title"><h2>云端同步空间</h2><span id="quota-percent">0%</span></div>
+      <div class="quota-values"><strong id="quota-used">—</strong><span id="quota-total">/ 100 KiB</span></div>
+      <div class="track quota-track" role="progressbar" aria-label="同步空间用量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <span id="quota-fill" style="width:0%"></span>
+      </div>
+      <p id="quota-free" class="hint">读取浏览器实际同步存储占用量中…</p>
+    </section>
     <div class="stat-grid">
       <div class="stat"><span class="stat-label">记录题数</span><strong id="quiz-count">0</strong></div>
       <div class="stat"><span class="stat-label">答对题数</span><strong id="right-count">0</strong></div>
@@ -29,6 +37,11 @@
     <section class="panel">
       <div class="panel-title"><h2>各课程做题进度</h2><span>按实际记录统计</span></div>
       <div class="papers" id="courses"><p class="empty">暂无做题记录。</p></div>
+    </section>
+    <section class="panel">
+      <div class="panel-title"><h2>课程同步管理</h2><span>按云端占用排序</span></div>
+      <p class="manage-tip">清除会删除该课程在浏览器云端的做题与阅读记录，并停止后续上传；<strong>网站本地记录不受影响</strong>，可以随时重新启用同步。</p>
+      <div id="course-manage" class="manage-list"><p class="empty">读取课程存储情况中…</p></div>
     </section>
     <div class="actions">
       <button id="sync" type="button" class="primary">立即同步</button>
