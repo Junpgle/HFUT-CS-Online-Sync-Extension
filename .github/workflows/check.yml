@@ -26,3 +26,5 @@ jobs:
         run: node tests/test-shared.cjs
       - name: Two-device integration tests
         run: node tests/test-content.cjs
+      - name: Quota and course management tests
+        run: node tests/test-popup.cjs
