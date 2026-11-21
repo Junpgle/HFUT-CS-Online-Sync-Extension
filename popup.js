@@ -23,16 +23,73 @@
       chrome.storage.local.get([S.STATE_KEY,S.LAST_SUCCESS,S.LAST_ERROR])
     ]);
     const device=local[S.STATE_KEY]||{};
-    return {
-      cloud,
-      local,
-      records:S.mergeAll(S.cloudQuiz(cloud),device.records||{}),
-      reading:S.mergeReading(S.cloudReading(cloud),device.reading||{})
-    };
+    const disabled=S.disabledCourses(cloud);
+    const records=S.mergeAll(S.cloudQuiz(cloud),device.records||{});
+    const reading=S.mergeReading(S.cloudReading(cloud),device.reading||{});
+    for(const c of Object.keys(disabled)){
+      delete records[c];
+      for(const route of Object.keys(reading))
+        if(S.courseOfRoute(route)===c)delete reading[route];
+    }
+    return {cloud,local,records,reading,disabled};
   }
   function courseTitle(c) { return S.TITLES[c]||c.toUpperCase(); }
+  const bytes=n=>n<1024?n+' B':(n/1024).toFixed(n<10240?1:0)+' KiB';
+  let renderToken=0;
+  async function disableCourse(c) {
+    const name=courseTitle(c);
+    if(!confirm('清除「'+name+'」的云端答题和阅读记录，并停止同步？\n\n网站本地做题记录不会删除，之后可恢复同步。'))return;
+    try{
+      // Set the opt-out before removing data to prevent other devices reuploading it.
+      await chrome.storage.sync.set({[S.disabledKey(c)]:{disabled:true,updated:Date.now()}});
+      for(let attempt=0;attempt<2;attempt++){
+        const cloud=await chrome.storage.sync.get(null);
+        const keys=S.courseCloudKeys(cloud,c);
+        if(keys.length)await chrome.storage.sync.remove(keys);
+      }
+      await render();
+      status('已清除「'+name+'」云端同步记录。网站本地数据仍保留。');
+    }catch(e){
+      await render().catch(()=>{});
+      status('清除失败：'+e.message+'。请重试。',true);
+    }
+  }
+  async function enableCourse(c){
+    try{
+      await chrome.storage.sync.remove(S.disabledKey(c));
+      await render();
+      status('已恢复「'+courseTitle(c)+'」同步。打开或刷新课程网页后会重新上传本地记录。');
+    }catch(e){status('恢复同步失败：'+e.message,true);}
+  }
   async function render() {
+    const token=++renderToken;
     const data=await combined();
+    const ids=new Set([
+      ...Object.keys(data.records),
+      ...Object.keys(S.groupedReading(data.reading)),
+      ...Object.keys(S.cloudQuiz(data.cloud)),
+      ...Object.keys(S.groupedReading(S.cloudReading(data.cloud))),
+      ...Object.keys(data.disabled)
+    ]);
+    const courseList=[...ids];
+    const used=await chrome.storage.sync.getBytesInUse(null);
+    const sizes=Object.fromEntries(await Promise.all(courseList.map(async c=>{
+      const keys=S.courseCloudKeys(data.cloud,c);
+      return [c,keys.length?await chrome.storage.sync.getBytesInUse(keys):0];
+    })));
+    if(token!==renderToken)return;
+    const quota=Number(chrome.storage.sync.QUOTA_BYTES)||102400;
+    const fraction=Math.min(100,Math.round(used/quota*1000)/10);
+    text($('quota-used'),bytes(used));
+    text($('quota-total'),'/ '+bytes(quota));
+    text($('quota-percent'),fraction.toFixed(1)+'%');
+    text($('quota-free'),'剩余 '+bytes(Math.max(0,quota-used))+
+      ' · 实际同步空间占用（含记录键与停用设置）');
+    const bar=$('quota-fill').parentElement;
+    $('quota-fill').style.width=fraction+'%';
+    bar.setAttribute('aria-valuenow',String(Math.round(fraction)));
+    bar.classList.toggle('warn',fraction>=80&&fraction<95);
+    bar.classList.toggle('full',fraction>=95);
     let n=0,right=0;
     const courseStats={};
     for(const [course,records] of Object.entries(data.records)){
@@ -66,6 +123,31 @@
       const track=document.createElement('div');track.className='track';
       const fill=document.createElement('span');fill.style.width=Math.round(value.percent)+'%';track.append(fill);
       a.append(top,track);reading.append(a);
+    }
+    const manage=$('course-manage');manage.replaceChildren();
+    courseList.sort((a,b)=>(sizes[b]||0)-(sizes[a]||0)||courseTitle(a).localeCompare(courseTitle(b),'zh-CN'));
+    if(!courseList.length){
+      const e=document.createElement('p');e.className='empty';
+      text(e,'暂无课程同步记录。');manage.append(e);
+    }
+    for(const c of courseList){
+      const disabled=!!data.disabled[c];
+      const row=document.createElement('div');row.className='manage-row'+(disabled?' disabled':'');
+      const meta=document.createElement('div');meta.className='manage-meta';
+      const title=document.createElement('div');title.className='manage-name';text(title,courseTitle(c));
+      const size=document.createElement('div');size.className='manage-size';
+      text(size,(disabled?'已停用 · 云端课程数据 ':'云端占用 ')+bytes(sizes[c]||0));
+      meta.append(title,size);
+      const button=document.createElement('button');
+      button.type='button';button.className=disabled?'':'danger';
+      text(button,disabled?'恢复同步':'清除并停用');
+      button.title=disabled?'恢复该课程云同步':'保留网站本地数据，仅清除云端记录';
+      button.addEventListener('click',async()=>{
+        button.disabled=true;
+        try{await (disabled?enableCourse(c):disableCourse(c));}
+        finally{button.disabled=false;}
+      });
+      row.append(meta,button);manage.append(row);
     }
     const courses=$('courses');
     courses.replaceChildren();
@@ -122,6 +204,13 @@
       const data=await combined();
       const records=S.mergeAll(data.records,input.records||{});
       const reading=S.mergeReading(data.reading,input.reading||{});
+      let skipped=0;
+      for(const course of Object.keys(data.disabled)){
+        if(records[course]){delete records[course];skipped++;}
+        for(const route of Object.keys(reading)){
+          if(S.courseOfRoute(route)===course){delete reading[route];skipped++;}
+        }
+      }
       const writes={};
       for(const [course,rows] of Object.entries(records)){
         for(const [part,entries] of Object.entries(S.shardCourse(rows))){
@@ -139,7 +228,7 @@
       await chrome.storage.local.set({[S.STATE_KEY]:{...existing,records,reading}});
       if(Object.keys(writes).length)await chrome.storage.sync.set(writes);
       await render();
-      status('导入完成。请刷新网站以恢复题目进度；阅读记录在下方可点击继续。');
+      status('导入完成。'+(skipped?'停用课程的数据已跳过。':'')+'请刷新网站以恢复题目进度。');
     }catch(err){status('导入失败：'+err.message,true);}
     finally{e.target.value='';}
   });
