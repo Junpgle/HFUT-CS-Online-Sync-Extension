@@ -47,3 +47,27 @@ h2 { margin:0; font-size:13px; } .panel-title span { color:var(--muted); font-si
 .paper span{min-width:0;overflow-wrap:anywhere}
 .paper strong{white-space:nowrap}
 .status .hint{overflow-wrap:anywhere}
+
+/* Sync quota meter and course management */
+.quota-panel{margin-top:11px}
+.quota-values{display:flex;align-items:baseline;gap:5px;margin:-2px 0 9px}
+.quota-values strong{font-size:20px;font-variant-numeric:tabular-nums}
+.quota-values span{color:var(--muted);font-size:12px}
+.quota-track{height:9px;margin:0}
+.quota-track>span{transition:width .2s ease}
+.quota-track.warn>span{background:linear-gradient(90deg,#d28b27,#ecb35f)}
+.quota-track.full>span{background:linear-gradient(90deg,#bb4345,#ec7273)}
+.quota-panel .hint{margin-top:8px}
+.manage-tip{color:var(--muted);font-size:11px;margin:0 0 10px;line-height:1.6}
+.manage-tip strong{color:var(--ink)}
+.manage-list{max-height:240px;overflow-y:auto;display:grid;gap:8px;scrollbar-width:thin}
+.manage-row{border:1px solid var(--line);border-radius:10px;padding:9px;background:#fbfdfe;display:flex;align-items:center;gap:8px}
+.manage-meta{min-width:0;flex:1}
+.manage-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.manage-size{color:var(--muted);font-size:10px;margin-top:2px}
+.manage-row button{flex:none;font-size:11px;padding:5px 8px;border:1px solid #d8e5e9;background:white;color:#226f78;border-radius:7px}
+.manage-row button.danger{color:#ad4246;border-color:#f0ced0}
+.manage-row button:hover{background:#ecf5f8}
+.manage-row button.danger:hover{background:#fff1f1}
+.manage-row button:disabled{opacity:.5;cursor:wait}
+.manage-row.disabled{opacity:.86}
