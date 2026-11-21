@@ -1,0 +1,30 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ctx = { console }; vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(__dirname + '/../shared.js','utf8'),ctx);
+const S=ctx.HFUTNetSync;
+const plain=(x)=>JSON.parse(JSON.stringify(x));
+assert.deepEqual(plain(S.parseSiteAnswers('{"paper-2024:p3-s1":"right","x":"wrong","paper-2021:p1-e1":"revealed"}')),
+ {"paper-2024:p3-s1":"right","paper-2021:p1-e1":"revealed"});
+assert.deepEqual(plain(S.parseSiteAnswers('{malformed')),{});
+assert.deepEqual(plain(S.parseSiteAnswers('[]')),{});
+const prev={"paper-2024:p3-s1":"right","paper-2024:p3-s2":"wrong"};
+const curr={"paper-2024:p3-s1":"wrong","paper-2024:p3-s3":"revealed"};
+const delta=S.detectLocalChanges(prev,curr,'a',100);
+assert.equal(delta['paper-2024:p3-s1'].v,'wrong');
+assert.equal(delta['paper-2024:p3-s2'].v,null);
+assert.equal(delta['paper-2024:p3-s3'].v,'revealed');
+const remote={"paper-2024:p3-s1":{v:'right',t:200,d:'b'}};
+const merged=S.mergeRecords(delta,remote);
+assert.equal(merged['paper-2024:p3-s1'].v,'right');
+assert.deepEqual(plain(S.materializeAnswers(merged)),{"paper-2024:p3-s1":"right","paper-2024:p3-s3":"revealed"});
+assert.equal(S.compareRecord({v:'wrong',t:100,d:'a'},{v:'right',t:100,d:'b'}),-1);
+const byPaper=S.splitPapers(merged);
+assert.equal(Object.keys(byPaper).length,1);
+assert.equal(Object.keys(S.cloudAnswers({[S.ANSWER_PREFIX+'paper-2024']:{version:1,entries:byPaper['paper-2024']}})).length,3);
+const read=S.mergeReading({ch1:{percent:80,y:100,section:'sec-ch1-work',updated:110,d:'a'}},
+  {ch1:{percent:20,y:10,section:'sec-ch1-basic',updated:100,d:'b'},ch2:{percent:10,y:30,section:null,updated:120,d:'b'}});
+assert.equal(read.ch1.percent,80);assert.equal(read.ch2.percent,10);
+assert.equal(S.readingUrl('ch1',read.ch1),S.SITE_URL+'#/net/deck/ch1?s=sec-ch1-work');
+console.log('PASS: 10 core sync / validation checks');
