@@ -7,6 +7,7 @@
   const LAST_ERROR = PREFIX + 'last_error';
   const QUIZ_PREFIX = PREFIX + 'q_';
   const READ_PREFIX = PREFIX + 'read_';
+  const DISABLE_PREFIX = PREFIX + 'disabled_';
   const SITE_URL = 'https://saltgardenia.github.io/HFUT-CS-Online/';
   const VALID = new Set(['right', 'wrong', 'revealed']);
   const MAX_Q = 5000, SHARDS = 16, MAX_READ = 40;
@@ -177,15 +178,34 @@
     }
     return groups;
   }
+  function disabledKey(course) { return DISABLE_PREFIX + course; }
+  function courseOfDisableKey(key) {
+    if (typeof key !== 'string' || !key.startsWith(DISABLE_PREFIX)) return null;
+    const course = key.slice(DISABLE_PREFIX.length);
+    return courseValid(course) ? course : null;
+  }
+  function disabledCourses(cloud) {
+    const out = {};
+    for (const [key, value] of Object.entries(cloud || {})) {
+      const course = courseOfDisableKey(key);
+      if (course && value?.disabled === true) out[course] = true;
+    }
+    return out;
+  }
+  function courseCloudKeys(cloud, course) {
+    if (!courseValid(course)) return [];
+    return Object.keys(cloud || {}).filter(key =>
+      courseOfCloudQuizKey(key) === course || key === readKey(course));
+  }
   function resumeUrl(route) {
     if(!courseOfRoute(route))return SITE_URL+'#/'; 
     return SITE_URL+route+'?hfut_sync_resume=1';
   }
   root.HFUTSiteSync=Object.freeze({
-    PREFIX,STATE_KEY,LAST_SUCCESS,LAST_ERROR,QUIZ_PREFIX,READ_PREFIX,SITE_URL,TITLES,
+    PREFIX,STATE_KEY,LAST_SUCCESS,LAST_ERROR,QUIZ_PREFIX,READ_PREFIX,DISABLE_PREFIX,SITE_URL,TITLES,
     courseOfKey,keyOfCourse,questionValid,sanitizeAnswers,sanitizeRecords,
     mergeRecords,mergeAll,changes,actualAnswers,stable,hash,quizKey,readKey,shardCourse,
     cloudQuiz,courseOfCloudQuizKey,courseOfRoute,routeFromHash,cleanReading,mergeReading,
-    cloudReading,groupedReading,resumeUrl
+    cloudReading,groupedReading,disabledKey,courseOfDisableKey,disabledCourses,courseCloudKeys,resumeUrl
   });
 })(typeof globalThis!=='undefined'?globalThis:this);
