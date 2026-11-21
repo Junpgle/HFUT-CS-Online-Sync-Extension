@@ -40,8 +40,19 @@
     const name=courseTitle(c);
     if(!confirm('清除「'+name+'」的云端答题和阅读记录，并停止同步？\n\n网站本地做题记录不会删除，之后可恢复同步。'))return;
     try{
-      // Set the opt-out before removing data to prevent other devices reuploading it.
-      await chrome.storage.sync.set({[S.disabledKey(c)]:{disabled:true,updated:Date.now()}});
+      // Prefer opt-out first to stop other devices reuploading this course.
+      // If the sync area is already full, free this course's bytes first.
+      const control={[S.disabledKey(c)]:{disabled:true,updated:Date.now()}};
+      try{
+        await chrome.storage.sync.set(control);
+      }catch(err){
+        if(!/QUOTA_BYTES|MAX_ITEMS|quota|storage.*full/i.test(String(err?.message||err)))throw err;
+        const before=await chrome.storage.sync.get(null);
+        const keys=S.courseCloudKeys(before,c);
+        if(!keys.length)throw err;
+        await chrome.storage.sync.remove(keys);
+        await chrome.storage.sync.set(control);
+      }
       for(let attempt=0;attempt<2;attempt++){
         const cloud=await chrome.storage.sync.get(null);
         const keys=S.courseCloudKeys(cloud,c);
