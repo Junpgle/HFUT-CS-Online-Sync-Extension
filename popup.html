@@ -1,47 +1,47 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>HFUT 计网学习同步</title>
-  <link rel="stylesheet" href="popup.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>HFUT-CS-Online 全站学习同步</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="shell">
+  <main class="shell">
     <header class="header">
-      <div class="logo" aria-hidden="true">⌁</div>
-      <div class="brand"><h1>计算机网络</h1><p>跨设备学习记录 · 独立扩展</p></div>
-      <span class="dot" title="仅在访问目标网站时记录数据"></span>
+      <div class="logo" aria-hidden="true">↺</div>
+      <div class="brand"><h1>HFUT 全站学习同步</h1><p>全部课程 · 阅读位置 · 逐题记录</p></div>
+      <span class="dot" title="仅访问指定网站时读取学习数据"></span>
     </header>
-    <section class="status">
-      <div class="statusrow"><span class="status-k">最近同步操作</span><span id="sync-time" class="status-v">—</span></div>
-      <p id="status-msg" class="hint" role="status">使用浏览器账号同步存储，无需登录网站。</p>
+    <section class="status" aria-live="polite">
+      <div class="statusrow"><span class="status-k">本机最近同步</span><span id="sync-time" class="status-v">—</span></div>
+      <p id="status-msg" class="hint" role="status">同一浏览器账号下跨设备同步，网站无需改动。</p>
     </section>
     <div class="stat-grid">
-      <div class="stat"><span class="stat-label">有记录的题目</span><strong id="quiz-count">0</strong></div>
-      <div class="stat"><span class="stat-label">答对的题目</span><strong id="right-count">0</strong></div>
-      <div class="stat"><span class="stat-label">阅读过的章节</span><strong id="chapter-count">0/7</strong></div>
+      <div class="stat"><span class="stat-label">记录题数</span><strong id="quiz-count">0</strong></div>
+      <div class="stat"><span class="stat-label">答对题数</span><strong id="right-count">0</strong></div>
+      <div class="stat"><span class="stat-label">阅读页面</span><strong id="reading-count">0</strong></div>
     </div>
     <section class="panel">
-      <div class="panel-title"><h2>继续阅读</h2><span>自动保存章节位置</span></div>
-      <div id="readings" class="readings"><p class="empty">浏览计网章节后，这里会显示阅读进度。</p></div>
+      <div class="panel-title"><h2>继续阅读</h2><span>最近学习的页面</span></div>
+      <div class="readings" id="readings"><p class="empty">滚动阅读任意课程后，此处将显示记录。</p></div>
     </section>
     <section class="panel">
-      <div class="panel-title"><h2>试卷进度</h2><span>共三套历年试卷</span></div>
-      <div id="papers" class="papers"></div>
+      <div class="panel-title"><h2>各课程做题进度</h2><span>按实际记录统计</span></div>
+      <div class="papers" id="courses"><p class="empty">暂无做题记录。</p></div>
     </section>
     <div class="actions">
-      <button type="button" id="sync" class="primary">立即同步</button>
-      <button type="button" id="reload" class="secondary">刷新网站</button>
+      <button id="sync" type="button" class="primary">立即同步</button>
+      <button id="reload" type="button" class="secondary">刷新网页</button>
     </div>
     <div class="tools">
       <button type="button" id="export">导出备份</button><span>·</span>
       <button type="button" id="import">导入备份</button><span>·</span>
-      <button type="button" id="visit">打开计网网站 ↗</button>
-      <input type="file" id="import-file" accept=".json,application/json" hidden />
+      <button type="button" id="visit">打开网站 ↗</button>
+      <input id="import-file" type="file" accept=".json,application/json" hidden>
     </div>
-    <p class="footer">Chrome 与 Edge 各自使用自己的账号同步空间；<br />不同浏览器之间可通过备份文件迁移。</p>
-  </div>
+    <p class="footer">Chrome 和 Edge 的云同步空间彼此独立；跨浏览器可使用 JSON 备份。<br>答题页面正在打开时，建议刷新页面以载入其他设备的新记录。</p>
+  </main>
   <script src="shared.js"></script>
   <script src="popup.js"></script>
 </body>
