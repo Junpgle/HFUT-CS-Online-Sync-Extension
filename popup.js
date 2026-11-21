@@ -13,8 +13,7 @@
   function activeSiteTab() {
     return chrome.tabs.query({active:true,currentWindow:true}).then(([t])=>{
       const u=t?.url||'';
-      return t?.id && (u.startsWith(S.SITE_URL)||
-        u.startsWith('http://localhost:5173/HFUT-CS-Online/')) ? t : null;
+      return t?.id && u.startsWith(S.SITE_URL) ? t : null;
     });
   }
   async function combined() {
