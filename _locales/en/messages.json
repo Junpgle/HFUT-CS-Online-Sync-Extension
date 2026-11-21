@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "HFUT-CS-Online Study Sync",
+    "description": "Extension name and Edge store listing name"
+  },
+  "extensionDescription": {
+    "message": "Sync quiz progress and reading positions on HFUT-CS-Online, with course management and JSON backups.",
+    "description": "Short description for the extension listing"
+  },
+  "actionTitle": {
+    "message": "HFUT Study Sync",
+    "description": "Extension toolbar button title"
+  }
+}
