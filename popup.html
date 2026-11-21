@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HFUT 计网学习同步</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="header">
+      <div class="logo" aria-hidden="true">⌁</div>
+      <div class="brand"><h1>计算机网络</h1><p>跨设备学习记录 · 独立扩展</p></div>
+      <span class="dot" title="仅在访问目标网站时记录数据"></span>
+    </header>
+    <section class="status">
+      <div class="statusrow"><span class="status-k">最近同步操作</span><span id="sync-time" class="status-v">—</span></div>
+      <p id="status-msg" class="hint" role="status">使用浏览器账号同步存储，无需登录网站。</p>
+    </section>
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-label">有记录的题目</span><strong id="quiz-count">0</strong></div>
+      <div class="stat"><span class="stat-label">答对的题目</span><strong id="right-count">0</strong></div>
+      <div class="stat"><span class="stat-label">阅读过的章节</span><strong id="chapter-count">0/7</strong></div>
+    </div>
+    <section class="panel">
+      <div class="panel-title"><h2>继续阅读</h2><span>自动保存章节位置</span></div>
+      <div id="readings" class="readings"><p class="empty">浏览计网章节后，这里会显示阅读进度。</p></div>
+    </section>
+    <section class="panel">
+      <div class="panel-title"><h2>试卷进度</h2><span>共三套历年试卷</span></div>
+      <div id="papers" class="papers"></div>
+    </section>
+    <div class="actions">
+      <button type="button" id="sync" class="primary">立即同步</button>
+      <button type="button" id="reload" class="secondary">刷新网站</button>
+    </div>
+    <div class="tools">
+      <button type="button" id="export">导出备份</button><span>·</span>
+      <button type="button" id="import">导入备份</button><span>·</span>
+      <button type="button" id="visit">打开计网网站 ↗</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden />
+    </div>
+    <p class="footer">Chrome 与 Edge 各自使用自己的账号同步空间；<br />不同浏览器之间可通过备份文件迁移。</p>
+  </div>
+  <script src="shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
