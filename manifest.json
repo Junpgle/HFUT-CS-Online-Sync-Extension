@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HFUT-CS-Online 全站学习同步",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "在不修改网站的情况下，跨设备同步 HFUT-CS-Online 所有课程的答题结果和阅读位置。",
   "permissions": [
     "storage",
@@ -12,7 +12,7 @@
     "http://localhost:5173/HFUT-CS-Online/*"
   ],
   "action": {
-    "default_title": "计网学习同步",
+    "default_title": "HFUT 全站学习同步",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
