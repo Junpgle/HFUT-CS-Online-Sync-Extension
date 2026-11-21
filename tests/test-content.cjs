@@ -109,11 +109,11 @@ async function main(){
   await a.storage.sync.set({[S.disabledKey('net')]:{disabled:true,updated:Date.now()}});
   await a.storage.sync.remove(S.courseCloudKeys(cloud,'net'));
   await settle(300);
-  assert.deepEqual(S.courseCloudKeys(cloud,'net'),[],'net cloud data must be deleted');
+  assert.equal(S.courseCloudKeys(cloud,'net').length,0,'net cloud data must be deleted');
   assert.equal(a.get(netKey).s1,'right','original website answers must remain untouched');
   a.timers[0]();b.timers[0]();
   await settle(300);
-  assert.deepEqual(S.courseCloudKeys(cloud,'net'),[],
+  assert.equal(S.courseCloudKeys(cloud,'net').length,0,
     'other active devices must NOT re-upload the disabled course');
   assert.equal(b.get(osKey).s1,undefined,'OS clear tombstone is preserved');
 
