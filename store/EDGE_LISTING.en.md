@@ -48,6 +48,6 @@ Choose the most relevant available category such as Productivity, Education, or 
 
 ## Visual assets
 
-- Logo: use the existing 128 x 128 icon or provide a recommended 300 x 300 version.
+- Logo: use the dedicated [300 x 300 PNG store logo](assets/logo-300.png); the 128 x 128 icon is for runtime use.
 - Screenshots: up to 6 genuine captures, each 1280 x 800 or 640 x 480. You will provide these yourself.
 - Store listings require a logo and description for each listed language, including English.
