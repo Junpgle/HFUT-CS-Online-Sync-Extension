@@ -177,26 +177,6 @@
     }
     return groups;
   }
-  function migrateLegacy(cloud,device) {
-    // Old v1 keys are kept intact so users upgrading from the net-only build lose nothing.
-    const q={net:{}};
-    const prefix='hfutnet_v1_answers_';
-    for(const [key,obj] of Object.entries(cloud||{})) {
-      if(!key.startsWith(prefix))continue;
-      for(const [id,r] of Object.entries(obj?.entries||{})) {
-        if(!questionValid(id))continue;
-        const clean=cleanRecord(r);
-        if(clean)q.net[id]=clean;
-      }
-    }
-    let reading={};
-    for(const [id,r] of Object.entries(cloud?.hfutnet_v1_reading?.entries||{})) {
-      const route='#/net/deck/'+id;
-      if(!/^ch[1-7]$/.test(id)||!object(r))continue;
-      reading[route]={...r,title:TITLES.net+' · '+id,d:r.d||device};
-    }
-    return {quiz:q,reading:cleanReading(reading)};
-  }
   function resumeUrl(route) {
     if(!courseOfRoute(route))return SITE_URL+'#/'; 
     return SITE_URL+route+'?hfut_sync_resume=1';
@@ -206,6 +186,6 @@
     courseOfKey,keyOfCourse,questionValid,sanitizeAnswers,sanitizeRecords,
     mergeRecords,mergeAll,changes,actualAnswers,stable,hash,quizKey,readKey,shardCourse,
     cloudQuiz,courseOfCloudQuizKey,courseOfRoute,routeFromHash,cleanReading,mergeReading,
-    cloudReading,groupedReading,migrateLegacy,resumeUrl
+    cloudReading,groupedReading,resumeUrl
   });
 })(typeof globalThis!=='undefined'?globalThis:this);
