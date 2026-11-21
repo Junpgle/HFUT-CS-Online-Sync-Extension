@@ -30,6 +30,17 @@ function device(initial={},hash='#/net') {
         if(Object.keys(changes).length)queueMicrotask(()=>{
           for(const fn of cloudListeners)fn(changes,'sync');
         });
+      },
+      async remove(keys){
+        const changes={};
+        for(const key of (Array.isArray(keys)?keys:[keys])){
+          if(!(key in cloud))continue;
+          changes[key]={oldValue:clone(cloud[key]),newValue:undefined};
+          delete cloud[key];
+        }
+        if(Object.keys(changes).length)queueMicrotask(()=>{
+          for(const fn of cloudListeners)fn(changes,'sync');
+        });
       }
     },
     onChanged:{addListener(fn){cloudListeners.push(fn)}}
@@ -57,7 +68,7 @@ function device(initial={},hash='#/net') {
   vm.createContext(context);
   vm.runInContext(shared,context);
   vm.runInContext(script,context);
-  return {context,site,loc,win,events,timers,localStorage,
+  return {context,site,loc,win,events,timers,localStorage,storage,
     get(key){return JSON.parse(site[key]||'{}');},
     set(key,obj){site[key]=JSON.stringify(obj);}
   };
@@ -93,6 +104,25 @@ async function main(){
   await settle();
   assert.ok(cloud[S.readKey('net')].entries['#/net/deck/ch4'].y===640,'net reading position in cloud');
   assert.equal(b.loc.reloads,0);
-  console.log('PASS: two devices, separate courses, same question IDs, remote updates, clear and reading bookmark');
+
+  // Cloud cleanup: opt-out first, then remove the course's question+reading shards.
+  await a.storage.sync.set({[S.disabledKey('net')]:{disabled:true,updated:Date.now()}});
+  await a.storage.sync.remove(S.courseCloudKeys(cloud,'net'));
+  await settle(300);
+  assert.deepEqual(S.courseCloudKeys(cloud,'net'),[],'net cloud data must be deleted');
+  assert.equal(a.get(netKey).s1,'right','original website answers must remain untouched');
+  a.timers[0]();b.timers[0]();
+  await settle(300);
+  assert.deepEqual(S.courseCloudKeys(cloud,'net'),[],
+    'other active devices must NOT re-upload the disabled course');
+  assert.equal(b.get(osKey).s1,undefined,'OS clear tombstone is preserved');
+
+  // Re-enabling should repopulate from the site's own localStorage on open tabs.
+  await a.storage.sync.remove(S.disabledKey('net'));
+  await settle(300);
+  a.timers[0]();
+  await settle(300);
+  assert.equal(S.cloudQuiz(cloud).net.s1.v,'right','re-enable imports local website answers');
+  console.log('PASS: two devices, course isolation, tombstones, reading, opt-out, cloud purge and re-enable');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
