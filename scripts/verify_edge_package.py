@@ -14,6 +14,7 @@ EXPECTED = {
     "manifest.json", "shared.js", "content.js",
     "popup.html", "popup.css", "popup.js",
     "icons/icon16.png", "icons/icon48.png", "icons/icon128.png",
+    "_locales/zh_CN/messages.json", "_locales/en/messages.json",
 }
 SITE = "https://saltgardenia.github.io/HFUT-CS-Online/*"
 
@@ -34,7 +35,21 @@ def inspect_package(filename: Path) -> None:
         assert len(scripts) == 1 and scripts[0]["matches"] == [SITE]
         assert scripts[0]["js"] == ["shared.js", "content.js"]
         assert manifest["action"]["default_popup"] == "popup.html"
-        assert len(manifest.get("description", "")) <= 132
+        assert manifest.get("default_locale") == "zh_CN", "Default locale must be Simplified Chinese"
+        assert manifest["name"] == "__MSG_extensionName__"
+        assert manifest["description"] == "__MSG_extensionDescription__"
+        assert manifest["action"]["default_title"] == "__MSG_actionTitle__"
+        localized = {}
+        for locale in ("zh_CN", "en"):
+            messages = json.loads(archive.read(f"_locales/{locale}/messages.json").decode("utf-8"))
+            assert set(messages) >= {"extensionName", "extensionDescription", "actionTitle"}
+            for key in ("extensionName", "extensionDescription", "actionTitle"):
+                assert isinstance(messages[key].get("message"), str) and messages[key]["message"].strip()
+            assert len(messages["extensionName"]["message"]) <= 75
+            assert len(messages["extensionDescription"]["message"]) <= 132
+            localized[locale] = messages
+        assert "同步" in localized["zh_CN"]["extensionName"]["message"], "Chinese extension name missing"
+        assert "Sync" in localized["en"]["extensionName"]["message"], "English extension name missing"
         for icon_name, required in [(f"icons/icon{n}.png", n) for n in (16, 48, 128)]:
             data = archive.read(icon_name)
             assert data[:8] == b"\x89PNG\r\n\x1a\n", f"Not a PNG: {icon_name}"
