@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "HFUT-CS-Online 全站学习同步",
-  "version": "2.1.1",
-  "description": "为 HFUT-CS-Online 同步做题进度和阅读位置，支持学习统计、课程清理与 JSON 备份。",
+  "name": "__MSG_extensionName__",
+  "version": "2.1.2",
+  "description": "__MSG_extensionDescription__",
   "permissions": [
     "storage",
     "activeTab"
@@ -11,7 +11,7 @@
     "https://saltgardenia.github.io/HFUT-CS-Online/*"
   ],
   "action": {
-    "default_title": "HFUT 全站学习同步",
+    "default_title": "__MSG_actionTitle__",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -36,5 +36,6 @@
       "run_at": "document_start"
     }
   ],
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsNWXDXIvsFnzh3s1GR7PiU03dEqikUk+4NZH1aofosvtZiZQtSrprfqbE5oKnoT3EGYLMek9frqGutdcBdMzzKg29lmGCgX/+b98K64hbRTX2YB+5y06JtOyUsduMaExsWhlbpSpEO613HsXP1INxvukhgRVzjgp9vH6ZTkb+9ylPWFxqlaDQKuxIfo5PBXGSDhiWanRML5mwfrpK1UBf3bPiquQKv2HJ3fIpLyjYtDBbJvaxJzgXf+tvAye54spXNEJ3IDZk7oNgBuJeYo9osxhp/Wu2duF7Lw04PIRvIX+gqexf/2o6YRVjm/0wy/jOH9y1HZElfQlU9HjM/vHbQIDAQAB"
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsNWXDXIvsFnzh3s1GR7PiU03dEqikUk+4NZH1aofosvtZiZQtSrprfqbE5oKnoT3EGYLMek9frqGutdcBdMzzKg29lmGCgX/+b98K64hbRTX2YB+5y06JtOyUsduMaExsWhlbpSpEO613HsXP1INxvukhgRVzjgp9vH6ZTkb+9ylPWFxqlaDQKuxIfo5PBXGSDhiWanRML5mwfrpK1UBf3bPiquQKv2HJ3fIpLyjYtDBbJvaxJzgXf+tvAye54spXNEJ3IDZk7oNgBuJeYo9osxhp/Wu2duF7Lw04PIRvIX+gqexf/2o6YRVjm/0wy/jOH9y1HZElfQlU9HjM/vHbQIDAQAB",
+  "default_locale": "zh_CN"
 }
