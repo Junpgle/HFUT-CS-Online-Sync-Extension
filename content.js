@@ -1,223 +1,256 @@
-/* Runs only on the HFUT-CS-Online host; never injects code into the site's JS world. */
+/* HFUT-CS-Online Sync: per-course quiz answers and per-route reading bookmarks.
+   Isolated content script. It never changes the host website's source code. */
 (async function () {
   'use strict';
-  const S = globalThis.HFUTNetSync;
-  if (!S) return;
-
+  const S = globalThis.HFUTSiteSync;
+  if (!S || !chrome?.storage?.sync) return;
   let state = null;
-  let locked = Promise.resolve();
-  let snapshotPending = false;
-  let timer = null;
+  let queue = Promise.resolve();
+  let pending = false;
+  let lastError = '';
   let readingTimer = null;
-  let readingLastSaved = 0;
-  let lastChapter = null;
-  let lastError = null;
+  let lastReadingAt = 0;
+  let previousRoute = null;
+  const SITE_NAME = 'HFUT-CS-Online';
 
-  const serial = (fn) => {
-    locked = locked.catch(() => {}).then(fn).catch((e) => {
-      lastError = e?.message || String(e);
-      console.warn('[HFUT Net Sync]', lastError);
-      chrome.storage.local.set({ [S.PREFIX + 'last_error']: lastError }).catch(() => {});
+  function serial(job) {
+    queue = queue.catch(() => {}).then(job).catch(async err => {
+      lastError = String(err?.message || err);
+      console.warn('[HFUT Site Sync]', lastError);
+      try { await chrome.storage.local.set({ [S.LAST_ERROR]: lastError }); } catch {}
     });
-    return locked;
-  };
-  const siteAnswers = () => {
-    try { return S.parseSiteAnswers(localStorage.getItem(S.SITE_KEY)); }
-    catch { return {}; }
-  };
-  const practiceRoute = () => /^#\/net\/practice(?:\/|\?|$)/.test(location.hash);
-  const currentChapter = () => location.hash.match(/^#\/net\/deck\/(ch[1-7])(?:\?|$)/)?.[1] ?? null;
-  const persist = async () => {
-    if (!state) return;
-    await chrome.storage.local.set({ [S.DEVICE_STATE_KEY]: state });
-  };
-
-  async function absorbCloud() {
-    const cloud = await chrome.storage.sync.get(null);
-    state.records = S.mergeRecords(state.records, S.cloudAnswers(cloud));
-    state.reading = S.mergeReading(state.reading, cloud[S.READING_KEY]?.entries);
-    return cloud;
+    return queue;
   }
-
-  async function pushCloud(cloud) {
-    const latest = cloud || await chrome.storage.sync.get(null);
-    state.records = S.mergeRecords(state.records, S.cloudAnswers(latest));
-    state.reading = S.mergeReading(state.reading, latest[S.READING_KEY]?.entries);
-    const grouped = S.splitPapers(state.records);
-    const changes = {};
-    for (const [paper, entries] of Object.entries(grouped)) {
-      const key = S.ANSWER_PREFIX + paper;
-      const existing = S.sanitizeRecords(latest[key]?.entries);
-      if (S.canonical(entries) !== S.canonical(existing)) {
-        const item = { version: 1, entries };
-        // sync has a per-item limit of 8 KiB; never discard records silently.
-        if (new TextEncoder().encode(JSON.stringify(item)).length > 7500) {
-          throw new Error(`${paper} 数据超过浏览器同步限制，请先导出备份`);
+  function siteSnapshot() {
+    const out = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i), course = S.courseOfKey(key);
+        if (course) out[course] = S.sanitizeAnswers(localStorage.getItem(key));
+      }
+    } catch (err) { console.warn('[HFUT Site Sync] 读取网站记录失败', err); }
+    return out;
+  }
+  function currentPracticeCourse() {
+    const m = /^#\/([a-z][a-z0-9-]{1,17})\/practice(?:\/|\?|$)/.exec(location.hash);
+    return m?.[1] || (/^#\/practice(?:\/|\?|$)/.test(location.hash) ? 'algo' : null);
+  }
+  function currentRoute() { return S.routeFromHash(location.hash); }
+  function currentReading() {
+    const route = currentRoute();
+    return route ? state?.reading?.[route] : undefined;
+  }
+  async function saveLocal() {
+    if (!state) return;
+    await chrome.storage.local.set({ [S.STATE_KEY]: state });
+  }
+  function absorb(cloud) {
+    state.records = S.mergeAll(state.records, S.cloudQuiz(cloud));
+    state.reading = S.mergeReading(state.reading, S.cloudReading(cloud));
+  }
+  async function publish(cloudFromCaller = null) {
+    const cloud = cloudFromCaller || await chrome.storage.sync.get(null);
+    absorb(cloud);
+    await saveLocal(); // local backup must survive even when cloud quota/rate limits fail
+    const writes = {};
+    for (const [course, rows] of Object.entries(state.records)) {
+      const shards = S.shardCourse(rows);
+      for (const [part, entries] of Object.entries(shards)) {
+        const key = S.quizKey(course, Number(part));
+        const existing = S.sanitizeRecords(cloud[key]?.entries);
+        if (S.stable(existing) === S.stable(entries)) continue;
+        const value = { version: 2, entries };
+        if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 7500) {
+          throw new Error('课程 ' + course + ' 有较多答题记录，超过浏览器单项同步限制。请导出备份。');
         }
-        changes[key] = item;
+        writes[key] = value;
       }
     }
-    if (S.canonical(state.reading) !== S.canonical(S.cleanReading(latest[S.READING_KEY]?.entries))) {
-      changes[S.READING_KEY] = { version: 1, entries: state.reading };
+    for (const [course, entries] of Object.entries(S.groupedReading(state.reading))) {
+      const key = S.readKey(course);
+      const existing = S.cleanReading(cloud[key]?.entries);
+      if (S.stable(existing) === S.stable(entries)) continue;
+      const value = { version: 2, entries };
+      if (new TextEncoder().encode(JSON.stringify(value)).byteLength > 7500) {
+        throw new Error('课程 ' + course + ' 阅读记录超过浏览器单项同步限制。请导出备份。');
+      }
+      writes[key] = value;
     }
-    if (Object.keys(changes).length) await chrome.storage.sync.set(changes);
-    await persist();
-    lastError = null;
-    await chrome.storage.local.set({ [S.PREFIX + 'last_success']: Date.now(), [S.PREFIX + 'last_error']: '' });
+    if (Object.keys(writes).length) await chrome.storage.sync.set(writes);
+    lastError = '';
+    await chrome.storage.local.set({ [S.LAST_SUCCESS]: Date.now(), [S.LAST_ERROR]: '' });
   }
-
-  function applyCloudToSite({ initial = false, force = false } = {}) {
-    const desired = S.materializeAnswers(state.records);
-    const currently = siteAnswers();
-    if (S.canonical(currently) === S.canonical(desired)) {
-      snapshotPending = false;
-      return false;
+  function writeCloudToSite(options = {}) {
+    const activePractice = currentPracticeCourse();
+    const initial = options.initial === true;
+    let touchedActive = false, wrote = false;
+    for (const [course, records] of Object.entries(state.records)) {
+      const desired = S.actualAnswers(records);
+      const key = S.keyOfCourse(course);
+      const current = S.sanitizeAnswers(localStorage.getItem(key));
+      if (S.stable(current) === S.stable(desired)) {
+        // Keep the observed baseline consistent after applying cloud records.
+        state.lastSite[course] = desired;
+        continue;
+      }
+      if (!initial && course === activePractice) {
+        touchedActive = true;
+        continue;
+      }
+      localStorage.setItem(key, JSON.stringify(desired));
+      state.lastSite[course] = desired;
+      wrote = true;
+      if (course === activePractice) touchedActive = true;
     }
-    if (practiceRoute() && !initial && !force) {
-      // React holds an in-memory snapshot on the practice page. Do not silently
-      // replace localStorage while the user is answering: that could lose work.
-      snapshotPending = true;
-      return false;
-    }
-    localStorage.setItem(S.SITE_KEY, JSON.stringify(desired));
-    state.lastSite = desired;
-    snapshotPending = false;
-    return true;
+    pending = !initial && touchedActive;
+    return { wrote, changedActive: initial && touchedActive };
   }
-
-  async function observeSiteChanges() {
+  function collectChanges(snapshot) {
+    for (const [course, answers] of Object.entries(snapshot)) {
+      const baseline = state.lastSite[course] || {};
+      const delta = S.changes(baseline, answers, state.deviceId, Date.now());
+      if (Object.keys(delta).length) {
+        state.records[course] = S.mergeRecords(state.records[course], delta);
+        state.lastSite[course] = answers;
+      }
+    }
+  }
+  async function observe() {
     if (!state) return;
-    const now = siteAnswers();
-    const delta = S.detectLocalChanges(state.lastSite, now, state.deviceId, Date.now());
-    if (!Object.keys(delta).length) return;
-    state.records = S.mergeRecords(state.records, delta);
-    state.lastSite = now;
-    // Do not merge a remote save over an active React practice session.
-    const cloud = await absorbCloud();
-    if (!practiceRoute()) applyCloudToSite();
-    await pushCloud(cloud);
+    collectChanges(siteSnapshot());
+    const cloud = await chrome.storage.sync.get(null);
+    absorb(cloud);
+    writeCloudToSite();
+    await publish(cloud);
+  }
+  async function freshSync() {
+    await observe();
+    return { pending, error:lastError };
   }
 
-  async function refresh({ force = false } = {}) {
-    await observeSiteChanges();
-    const cloud = await absorbCloud();
-    const updated = applyCloudToSite({ force });
-    await pushCloud(cloud);
-    return { updated, pending: snapshotPending, lastError };
-  }
-
-  function makeReadingRecord(chapter) {
+  function readingPosition(route) {
     const docHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
-    const max = Math.max(1, docHeight - window.innerHeight);
-    const y = Math.max(0, Math.floor(window.scrollY));
+    const maxY = Math.max(1, docHeight - window.innerHeight);
+    const y = Math.max(0, Math.round(window.scrollY));
     let section = null;
-    const node = document.querySelector(`.page[data-deck="${chapter}"]`);
-    if (node) {
-      for (const h of node.querySelectorAll('h2[id],h3[id]')) {
-        if (h.getBoundingClientRect().top < 180) section = h.id;
-        else break;
-      }
+    const scope = document.querySelector('.page') || document.querySelector('main') || document;
+    for (const header of scope.querySelectorAll('h2[id],h3[id]')) {
+      if (header.getBoundingClientRect().top < 180) section = header.id;
+      else break;
     }
-    return { percent: Math.round(Math.min(y / max, 1) * 100), y, section, updated: Date.now(), d: state.deviceId };
+    let title = document.querySelector('.page h1')?.textContent?.trim() || document.title || SITE_NAME;
+    if (title.length > 90) title = title.slice(0, 90);
+    return { y, percent:Math.round(Math.min(1,y/maxY)*100), section, title, updated:Date.now(), d:state.deviceId };
   }
-  async function saveReading(force = false) {
-    const ch = currentChapter();
-    if (!ch || !state) return;
+  async function recordReading(force = false) {
+    const route = currentRoute();
+    if (!state || !route || window.scrollY < 110) return;
     const now = Date.now();
-    if (!force && now - readingLastSaved < 7000) return;
-    // Avoid overwriting a saved bookmark merely by opening a chapter at the top.
-    if (window.scrollY < 110 && (!force || (state.reading[ch]?.percent ?? 0) > 5)) return;
-    const next = makeReadingRecord(ch);
-    const old = state.reading[ch];
-    if (!force && old?.d === state.deviceId && old.section === next.section &&
-        Math.abs(old.percent - next.percent) < 2 && now - old.updated < 30000) return;
-    state.reading[ch] = next;
-    readingLastSaved = now;
-    await pushCloud();
+    if (!force && now - lastReadingAt < 6500) return;
+    const candidate = readingPosition(route);
+    const prior = state.reading[route];
+    if (!force && prior?.d === state.deviceId && prior.section === candidate.section &&
+        Math.abs(prior.percent-candidate.percent) < 2 && now-prior.updated < 30000) return;
+    state.reading[route] = candidate;
+    lastReadingAt = now;
+    await publish();
   }
   function scheduleReading() {
-    if (!currentChapter() || !state) return;
+    if (!currentRoute()) return;
     clearTimeout(readingTimer);
-    readingTimer = setTimeout(() => serial(() => saveReading()), 2100);
+    readingTimer = setTimeout(() => serial(() => recordReading()), 1100);
   }
-  function handleRouteChange() {
-    const newChapter = currentChapter();
-    if (lastChapter && lastChapter !== newChapter) {
-      // Route changes cause the old page to be removed, so its position is already
-      // tracked during scroll. Do not overwrite it with the new page's scrollY.
+  function resumeIfRequested() {
+    if (!/[?&]hfut_sync_resume=1(?:&|$)/.test(location.hash)) return;
+    const route = currentRoute();
+    const rec = state?.reading?.[route];
+    if (!rec) return;
+    let userMoved = false;
+    const mark = () => { userMoved = true; };
+    for (const ev of ['wheel','touchstart','pointerdown','keydown']) addEventListener(ev,mark,{once:true});
+    const restore = () => {
+      if (userMoved || currentRoute() !== route) return;
+      // Reposition after React's normal mount / scroll-to-top effects have finished.
+      window.scrollTo({top:rec.y,behavior:'instant'});
+    };
+    setTimeout(restore, 350);
+    setTimeout(restore, 950);
+  }
+  function onRouteChange() {
+    const route = currentRoute();
+    if (route !== previousRoute) {
       clearTimeout(readingTimer);
+      previousRoute = route;
     }
-    lastChapter = newChapter;
-    if (!practiceRoute()) serial(async () => {
-      await observeSiteChanges();
-      applyCloudToSite();
-      await persist();
+    serial(async () => {
+      await observe();
+      resumeIfRequested();
     });
   }
-
   async function init() {
-    const saved = (await chrome.storage.local.get(S.DEVICE_STATE_KEY))[S.DEVICE_STATE_KEY];
-    const current = siteAnswers();
-    const previouslyTracked = !!(saved && typeof saved === 'object' && saved.lastSite);
+    const stored = (await chrome.storage.local.get(S.STATE_KEY))[S.STATE_KEY];
+    const snapshot = siteSnapshot();
+    const hasBaseline = !!(stored && typeof stored === 'object' && stored.lastSite);
     state = {
-      deviceId: typeof saved?.deviceId === 'string' ? saved.deviceId : crypto.randomUUID(),
-      records: S.sanitizeRecords(saved?.records),
-      reading: S.cleanReading(saved?.reading),
-      lastSite: previouslyTracked ? S.parseSiteAnswers(saved.lastSite) : current,
+      deviceId: typeof stored?.deviceId === 'string' && stored.deviceId.length < 90 ? stored.deviceId : crypto.randomUUID().slice(0,12),
+      records: {},
+      reading: S.cleanReading(stored?.reading),
+      lastSite: hasBaseline && stored.lastSite && typeof stored.lastSite === 'object' ? stored.lastSite : {},
     };
-    if (previouslyTracked) {
-      state.records = S.mergeRecords(state.records,
-        S.detectLocalChanges(state.lastSite, current, state.deviceId, Date.now()));
+    state.records = S.mergeAll({},stored?.records||{});
+    if (hasBaseline) {
+      collectChanges(snapshot); // changes made while the extension was not running
     } else {
-      // Initial import: unknown-age site answers should not replace newer cloud answers.
-      const seed = Object.fromEntries(Object.entries(current).map(([id, v]) =>
-        [id, { v, t: 0, d: state.deviceId }]));
-      state.records = S.mergeRecords(state.records, seed);
+      // Preserve pre-existing site answers as the oldest possible events.
+      for (const [course, answers] of Object.entries(snapshot)) {
+        state.records[course] = S.mergeRecords(state.records[course],
+          Object.fromEntries(Object.entries(answers).map(([q,v]) => [q,{v,t:0,d:state.deviceId}])));
+      }
+      state.lastSite = snapshot;
     }
-    state.lastSite = current;
-    const cloud = await absorbCloud();
-    const changed = applyCloudToSite({ initial: true });
-    await pushCloud(cloud);
-    lastChapter = currentChapter();
-    if (changed && practiceRoute()) {
-      // On first hydration React might already have read its old answer map.
-      // One reload makes the restored localStorage visible to React.
+    const cloud = await chrome.storage.sync.get(null);
+    absorb(cloud);
+    const applied = writeCloudToSite({initial:true});
+    await publish(cloud);
+    previousRoute = currentRoute();
+    if (applied.changedActive) {
+      // The React practice view may have read old results before asynchronous hydration.
       location.reload();
       return;
     }
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== 'sync' || !Object.keys(changes).some(k => k === S.READING_KEY || k.startsWith(S.ANSWER_PREFIX))) return;
+    chrome.storage.onChanged.addListener((changes,area) => {
+      if (area !== 'sync' || !Object.keys(changes).some(k => k.startsWith(S.QUIZ_PREFIX)||k.startsWith(S.READ_PREFIX))) return;
       serial(async () => {
-        await observeSiteChanges();
-        const cloud = await absorbCloud();
-        applyCloudToSite();
-        await pushCloud(cloud);
+        // Merge the old cloud snapshot too: concurrent writes of the same shard
+        // may otherwise erase one device's recently updated question.
+        const old = {};
+        for (const [key,val] of Object.entries(changes)) if (val.oldValue) old[key]=val.oldValue;
+        absorb(old);
+        await observe();
       });
     });
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === 'SYNC_NOW') {
-        serial(() => refresh()).then(() => sendResponse({ ok: true, pending: snapshotPending, error: lastError }));
+    chrome.runtime.onMessage.addListener((m,_sender,respond) => {
+      if (m?.type === 'SYNC_NOW') {
+        serial(freshSync).then(()=>respond({ok:true,pending,error:lastError}));
         return true;
       }
-      if (message?.type === 'GET_STATUS') {
-        sendResponse({ ok: true, pending: snapshotPending, chapter: currentChapter(), error: lastError });
+      if (m?.type === 'GET_STATUS') {
+        respond({ok:true,pending,error:lastError,route:currentRoute()});
+        return false;
       }
       return false;
     });
-    setInterval(() => serial(observeSiteChanges), 1800);
-    addEventListener('scroll', scheduleReading, { passive: true });
-    addEventListener('hashchange', handleRouteChange);
-    addEventListener('pagehide', () => {
-      if (currentChapter() && window.scrollY > 110) {
-        // browser may discard async work during unload; ordinary scroll updates
-        // are the primary persistence mechanism.
-        serial(() => saveReading(true));
-      }
+    setInterval(() => serial(observe), 3000);
+    addEventListener('scroll',scheduleReading,{passive:true});
+    addEventListener('hashchange',onRouteChange);
+    addEventListener('pagehide',() => {
+      if (window.scrollY >= 110) serial(()=>recordReading(true));
     });
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') serial(() => saveReading(true));
-      else serial(observeSiteChanges);
+    document.addEventListener('visibilitychange',() => {
+      if (document.visibilityState === 'hidden') serial(()=>recordReading(true));
+      else serial(observe);
     });
+    resumeIfRequested();
   }
   await serial(init);
 })();
