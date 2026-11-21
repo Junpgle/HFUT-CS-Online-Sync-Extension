@@ -37,3 +37,13 @@ h2 { margin:0; font-size:13px; } .panel-title span { color:var(--muted); font-si
 .tools button { padding:0; border:0; background:transparent; color:#18747e; font-size:11px; }
 .tools span { color:#b6c6d0; } .tools button:hover { text-decoration:underline; }
 .footer { margin:10px 0 0; color:#8194a3; font-size:10px; text-align:center; line-height:1.6; }
+
+/* All-course dashboard: scrolling lists instead of an oversized popup. */
+.readings{max-height:245px;overflow-y:auto;scrollbar-width:thin;padding-right:3px}
+.papers{max-height:210px;overflow-y:auto;scrollbar-width:thin}
+.reading-name{display:block;max-width:275px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.paper{border-bottom:1px solid #f0f3f5;padding-bottom:5px}
+.paper:last-child{border-bottom:0}
+.paper span{min-width:0;overflow-wrap:anywhere}
+.paper strong{white-space:nowrap}
+.status .hint{overflow-wrap:anywhere}
