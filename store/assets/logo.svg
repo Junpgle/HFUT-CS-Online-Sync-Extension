@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <title>HFUT-CS-Online Study Sync</title>
+  <rect x="7" y="7" width="286" height="286" rx="39" fill="#ffffff"/>
+  <rect x="24" y="24" width="252" height="252" rx="38" fill="#087789"/>
+  <g fill="none" stroke="#d2f7f1" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M96 121 L208 93 L157 218 Z"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="96" cy="121" r="29"/>
+    <circle cx="208" cy="93" r="29"/>
+    <circle cx="157" cy="218" r="29"/>
+  </g>
+</svg>
