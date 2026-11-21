@@ -1,39 +1,56 @@
-# HFUT 计网学习同步 · 独立浏览器扩展
+# HFUT-CS-Online Sync Extension
 
-适用于 `https://saltgardenia.github.io/HFUT-CS-Online/#/net` 的 Manifest V3 扩展。**不修改原网站源码。**
+独立的 Chrome / Edge Manifest V3 扩展，**无需修改原 HFUT-CS-Online 网站**。适用网站：
+
+https://saltgardenia.github.io/HFUT-CS-Online/
 
 ## 功能
 
-- 自动同步三套计网试卷的逐题结果：`right`（答对）、`wrong`（答错）、`revealed`（查看答案）；冲突按每题最近更新时间合并。
-- 单独记录七章的阅读百分比和最后阅读的知识点，在扩展弹窗中点击可跳转回章节。
-- 使用 `chrome.storage.sync`，同一 Chrome 账号的 Chrome 或同一 Edge 账号的 Edge 可以跨桌面设备同步，无需自建服务器。
-- 支持 JSON 备份导出和导入，便于跨浏览器迁移。
+- **全站做题同步**：自动识别各门课程的 `*-practice-progress-v1` 本地记录，以及算法课的 `practice-progress-v1`。按「课程 + 题目 ID」保存答对、答错、看过答案等状态，不会混淆不同课程相同题号。
+- **跨设备同步**：通过 `chrome.storage.sync` 在登录了同一个浏览器账号、开启扩展同步的桌面浏览器之间传递记录。记录使用时间戳和删除墓碑进行逐题合并；同步有延迟，不能替代备份。
+- **全站阅读进度**：记录阅读页面的路径、最近章节标题、百分比、滚动距离，弹窗可点击返回。第一次安装前网站未保存的阅读位置不能追溯。
+- **全站概览**：查看各课程有记录的题数、答对题数、最近阅读页面。
+- **备份**：导出/导入 JSON，用于 Chrome / Edge 之间迁移、留存个人备份。
+
+网站现有的选择题作答进度会在首次安装后读入；扩展不会改动网页源码。为了避免 React 在做题时覆盖其他设备传来的答案，**已打开的做题页面需要刷新后才会把其他设备的记录显示到界面**。
 
 ## 安装
 
-1. 在仓库下载源码 ZIP 或克隆仓库，确保根目录含 `manifest.json`。
-2. Chrome 打开 `chrome://extensions/`，Edge 打开 `edge://extensions/`。
-3. 开启开发者模式，选择**加载已解压的扩展程序**，指向该根目录。
-4. 各台电脑安装同一版本，登录各自浏览器账号并开启扩展同步；打开计网网站进行学习。
+1. 打开 [GitHub 仓库](https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension)，选择 **Code → Download ZIP**，解压。
+2. Chrome 地址栏输入 `chrome://extensions/`，Edge 输入 `edge://extensions/`。
+3. 开启开发者模式，选择 **加载已解压的扩展程序**，选中包含 `manifest.json` 的根目录。
+4. 多台电脑使用同一 Chrome 账号（或同一 Edge 账号），并在浏览器设置中开启扩展同步。
+5. 正常浏览网站。扩展弹窗可查看进度、触发同步、导出备份和跳转到阅读位置。
 
-## 使用限制与注意事项
+> 注意：Chrome 和 Edge 的同步云空间互不相通；手机端通常不支持安装此类桌面扩展。不同浏览器请使用 JSON 备份迁移。
 
-- 支持网站的 `net-practice-progress-v1` 作答数据以及 `#/net/deck/ch1`～`ch7` 的阅读位置；不读取其他课程的作答记录。
-- 跨设备同步可能有延迟；在另一台电脑打开中的答题页面需要**刷新网页**，让 React 重新读取同步后的记录。
-- 网站原本没有跨会话保存阅读位置，安装扩展后才开始积累阅读记录。
-- Chrome 和 Edge 的账号同步空间不互通，需要使用扩展的 JSON 导入/导出。
-- 网站主动清空答题进度会同步删除状态；建议定期导出备份。
-- `manifest.json` 中固定的公开 `key` 用来保持解压安装时的扩展 ID 一致，仓库不包含私钥。
-- 浏览器 `storage.sync` 存在配额和同步频率限制。扩展只读取指定站点的学习记录，不采集 Cookie、密码或其他网站信息。
-- 手机浏览器通常不支持安装任意桌面浏览器扩展。
+## 自动识别规则
 
-## 测试
+只在站点 `saltgardenia.github.io/HFUT-CS-Online/`（以及已配置的本地开发地址）运行。
 
-使用 Node.js，无需安装 npm 依赖：
+- 做题记录：读取本网站 `localStorage` 中精确匹配 `practice-progress-v1`、`课程代号-practice-progress-v1` 的数据；仅接受 `right`、`wrong`、`revealed` 三种值。
+- 阅读记录：记录站内非 `practice`、非 `attachments` 的课程页面路径，例如 `#/net/deck/ch4`、`#/os/chapter/ch2` 等。
+- 数据冲突：同一题保留时间戳较新的记录（设备时间请保持准确）；网页主动清空做题结果也会被记录并同步。
+- 现有网站的首页收藏、最近查看和主题设置**暂不同步**，因为这些不属于答题或阅读位置。
+
+## 数据保护与限制
+
+- 只获得浏览器 `storage`、`activeTab` 权限，以及此网站的受限访问权限；无额外第三方服务器、无 Cookie 访问权限。
+- Chrome / Edge 的 `storage.sync` 存在总量约 100 KiB、每项约 8 KiB 的配额及写入速率限制。题库很大时可能超额，扩展会保留本地数据、显示同步失败提醒，支持导出 JSON。
+- 各课程题目按哈希分成 16 个分片，以减小单项数据体积。
+- 读取远端同步结果后，扩展不会在正在使用的答题页内直接篡改 React 内存状态；如其他设备有更新，请刷新当前答题页面。
+- **此仓库是可测试的源码版本，尚未经跨两台真实电脑完整验收。**
+
+## 本地检查
+
+已提供可在 Node.js 20+ 运行的检查脚本，扩展无需依赖安装：
 
 ```bash
+node --check shared.js
+node --check content.js
+node --check popup.js
 node tests/test-shared.cjs
 node tests/test-content.cjs
 ```
 
-项目代码以仓库根目录为扩展目录；`icons/`、`tests/` 为图标及测试文件。
+源码结构：`manifest.json` 扩展清单、`shared.js` 数据结构/合并规则、`content.js` 自动同步与阅读检测、`popup.html/css/js` 操作面板、`icons/` 图标、`tests/` 回归检查。
