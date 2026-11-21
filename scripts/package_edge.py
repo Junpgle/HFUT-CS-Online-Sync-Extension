@@ -5,8 +5,8 @@ Usage:
     python3 scripts/package_edge.py
     python3 scripts/package_edge.py --output dist/custom.zip
 
-The source manifest keeps its unpacked-install public key and localhost dev entry.
-Only the Edge ZIP drops those development-only values.
+The source manifest keeps its unpacked-install public key.
+The Edge ZIP removes that key and enforces the official site-only access list.
 """
 from __future__ import annotations
 
