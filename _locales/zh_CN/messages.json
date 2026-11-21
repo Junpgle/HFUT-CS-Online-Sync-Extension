@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "HFUT-CS-Online 全站学习同步",
+    "description": "扩展显示名称与 Edge 商店名称"
+  },
+  "extensionDescription": {
+    "message": "为 HFUT-CS-Online 同步做题进度和阅读位置，支持学习统计、课程清理与 JSON 备份。",
+    "description": "扩展简短描述"
+  },
+  "actionTitle": {
+    "message": "HFUT 全站学习同步",
+    "description": "浏览器工具栏扩展按钮标题"
+  }
+}
