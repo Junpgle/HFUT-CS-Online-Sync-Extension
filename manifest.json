@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "HFUT 计网学习同步",
-  "version": "1.0.0",
-  "description": "不修改课程网站源码，自动同步计算机网络做题结果与章节阅读位置。",
+  "name": "HFUT-CS-Online 全站学习同步",
+  "version": "2.0.0",
+  "description": "在不修改网站的情况下，跨设备同步 HFUT-CS-Online 所有课程的答题结果和阅读位置。",
   "permissions": [
     "storage",
     "activeTab"
