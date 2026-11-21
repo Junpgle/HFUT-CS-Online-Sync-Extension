@@ -35,6 +35,25 @@ jobs:
         run: python scripts/package_edge.py
       - name: Verify Microsoft Edge store package
         run: python scripts/verify_edge_package.py dist/*.zip
+      - name: Independently decode released PNGs with Pillow
+        run: |
+          python -m pip install Pillow==11.3.0
+          python - <<'PY'
+          from io import BytesIO
+          from pathlib import Path
+          from zipfile import ZipFile
+          from PIL import Image
+          packages = list(Path("dist").glob("*.zip"))
+          assert len(packages) == 1, packages
+          with ZipFile(packages[0]) as archive:
+              for n in (16, 48, 128):
+                  name = f"icons/icon{n}.png"
+                  raw = archive.read(name)
+                  with Image.open(BytesIO(raw)) as img:
+                      img.load()
+                      assert img.size == (n, n) and img.mode == "RGBA", (name, img.size, img.mode)
+                  print(f"PASS: {name} fully decoded as RGBA")
+          PY
       - name: Upload validated Edge package
         uses: actions/upload-artifact@v4
         with:

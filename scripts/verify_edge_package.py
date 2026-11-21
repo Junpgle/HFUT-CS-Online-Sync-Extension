@@ -47,6 +47,8 @@ def validate_png(data: bytes, size: int, label: str) -> None:
     width, height, bits, color, compression, filtering, interlace = info
     assert (width, height) == (size, size), f"Wrong PNG dimensions: {label}"
     assert (compression, filtering, interlace) == (0, 0, 0), f"Unsupported PNG format: {label}"
+    if label.startswith("icons/"):
+        assert (bits, color) == (8, 6), f"Extension icons must use 8-bit RGBA PNG: {label}"
     channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color]
     row = (width * bits * channels + 7) // 8
     stream = zlib.decompressobj()

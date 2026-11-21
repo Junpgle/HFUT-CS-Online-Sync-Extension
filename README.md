@@ -90,7 +90,7 @@ node tests/test-popup.cjs
 
 ```bash
 python scripts/package_edge.py
-python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.1.3.zip
+python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.1.4.zip
 ```
 
 **语言本地化：** 自 v2.1.2 起，`manifest.json` 将 `default_locale` 设置为 `zh_CN`，并通过 `__MSG_extensionName__`、`__MSG_extensionDescription__` 等引用分别读取 `_locales/zh_CN/messages.json` 和 `_locales/en/messages.json`。这能让 Edge 商店识别 **简体中文 / English** 两种商品语言。扩展弹窗目前主要是中文界面，英文语言包覆盖扩展名称、简短说明和工具栏提示，并非全套界面翻译。
@@ -101,9 +101,13 @@ python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2
 
 **无需手动打包的方式**：前往仓库 [Actions → Extension checks](https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension/actions/workflows/check.yml)，选择最新一次成功运行，下载构建产物 **Edge-Addons-Upload-Package**；解压该 Actions 产物后，会获得要上传到 Partner Center 的 ZIP 文件。不要直接把 GitHub 「Code → Download ZIP」作为商店安装包上传。
 
-上架时选择简体中文商品资料，复制 `store/EDGE_LISTING.zh-CN.md` 的正文；按 `store/EDGE_CERTIFICATION.md` 填写权限理由、隐私和审核备注。**图片需要在 Partner Center 独立上传**：请使用专门制作的 [`store/assets/logo-300.png`](store/assets/logo-300.png)（300×300 PNG），不要将扩展工具栏使用的 `icons/icon128.png` 当成最终商店 Logo。图标已由矢量原稿统一生成，修正旧版本中的损坏 PNG。真实功能截图由维护者自行制作，推荐 1280×800 或 640×480，最多 6 张。
+上架时选择简体中文商品资料，复制 `store/EDGE_LISTING.zh-CN.md` 的正文；按 `store/EDGE_CERTIFICATION.md` 填写权限理由、隐私和审核备注。**图片需要在 Partner Center 独立上传**：请使用专门制作的 [`store/assets/logo-300.png`](store/assets/logo-300.png)（300×300 PNG），不要将扩展工具栏使用的 `icons/icon128.png` 当成最终商店 Logo。自 v2.1.4 起，运行时图标已由 Pillow 严格解码并重编码为标准 8 位 RGBA PNG，避免早期图标数据损坏和索引色图像兼容性问题。真实功能截图由维护者自行制作，推荐 1280×800 或 640×480，最多 6 张。
 
 当前扩展与 HFUT-CS-Online、合肥工业大学和 Microsoft 均无官方从属关系。审核是否通过由 Microsoft 决定。
+
+### v2.1.4 图标兼容性修复
+
+早期发布包的 `icon128.png` 曾出现浏览器无法解码的安装错误。v2.1.4 对 16、48、128 三种 PNG 均改用 **8-bit RGBA**，发布验证会逐项核对 CRC、DEFLATE 完整性、色彩格式和尺寸，并用 Pillow 独立解码实际 ZIP 内的图片。只升级仓库源码不会自动修改已上架的商店扩展；需要在 Partner Center 上传新版本 ZIP 并等待审核/分发。
 
 ### 发布前最后检查
 
