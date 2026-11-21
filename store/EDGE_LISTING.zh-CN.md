@@ -8,7 +8,7 @@ HFUT-CS-Online 全站学习同步
 
 ## 商店简短介绍（由 manifest.json 决定）
 
-为 HFUT-CS-Online 同步课程做题进度与阅读位置，支持浏览器账号同步、逐题合并、课程空间管理和 JSON 备份。
+为 HFUT-CS-Online 同步做题进度和阅读位置，支持学习统计、课程清理与 JSON 备份。
 
 ## 商店详细介绍（粘贴到「Description」）
 
