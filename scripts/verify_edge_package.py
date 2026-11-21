@@ -42,12 +42,22 @@ def inspect_package(filename: Path) -> None:
             assert (width, height) == (required, required), f"Wrong icon size: {icon_name}"
         page = archive.read("popup.html").decode("utf-8")
         assert 'src="shared.js"' in page and 'src="popup.js"' in page
+        assert "PRIVACY.md" in page, "Privacy policy must be reachable from popup"
+        assert not re.search(r'<script[^>]+src=["\x27]https?://', page), "Remote scripts not allowed"
         for file in ("content.js", "popup.js", "shared.js"):
             source = archive.read(file).decode("utf-8")
-            assert not re.search(r"\beval\s*\(", source), f"Remote/dynamic execution: {file}"
+            assert not re.search(r"\beval\s*\(", source), f"Dynamic execution: {file}"
+            assert not re.search(r"\bnew\s+Function\s*\(", source), f"Dynamic code compilation: {file}"
             assert "http://localhost" not in source, "Store runtime must not mention dev host"
         assert all(not item.startswith(("tests/", "scripts/", "store/", ".github/", "dist/")) for item in names)
-    print(f"PASS: Edge ZIP verified ({filename.name}, {manifest['version']}, {len(names)} files)")
+    root = Path(__file__).resolve().parent.parent
+    privacy = (root / "PRIVACY.md").read_text(encoding="utf-8")
+    listing = (root / "store/EDGE_LISTING.zh-CN.md").read_text(encoding="utf-8")
+    assert "chrome.storage.sync" in privacy and "Cookie" in privacy
+    assert "## 商店详细介绍" in listing and "## 推荐类别" in listing
+    body = listing.split("## 商店详细介绍", 1)[1].split("## 推荐类别", 1)[0].strip()
+    assert 250 <= len(body) <= 10_000, "Edge store description must contain 250-10000 characters"
+    print(f"PASS: Edge ZIP verified ({filename.name}, {manifest['version']}, {len(names)} files, store copy {len(body)} chars)")
 
 
 def main() -> int:
