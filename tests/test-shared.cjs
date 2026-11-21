@@ -44,4 +44,13 @@ assert.equal(Object.keys(grouped).length,2);
 assert.equal(S.resumeUrl('#/net/deck/ch4'),
   S.SITE_URL + '#/net/deck/ch4?hfut_sync_resume=1');
 assert.ok(S.hash('p1-s1') >= 0);
-console.log('PASS: multi-course keys, answer isolation, conflict/deletion, sharding, reading and resume');
+const control=S.disabledKey('net');
+assert.equal(S.courseOfDisableKey(control),'net');
+assert.equal(S.courseOfDisableKey('unrelated_key'),null);
+assert.equal(S.disabledCourses({[control]:{disabled:true}}).net,true);
+assert.equal(S.disabledCourses({[control]:{disabled:false}}).net,undefined);
+assert.deepEqual(plain(S.courseCloudKeys({
+  [S.quizKey('net',0)]:{entries:{}},[S.readKey('net')]:{entries:{}},
+  [S.quizKey('os',0)]:{entries:{}},[control]:{disabled:true}
+},'net')),[S.quizKey('net',0),S.readKey('net')]);
+console.log('PASS: multi-course keys, conflict/deletion, reading, quota cleanup and disabled-course controls');
