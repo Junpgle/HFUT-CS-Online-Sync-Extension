@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "2.1.4",
+  "version": "2.2.0",
   "description": "__MSG_extensionDescription__",
   "permissions": [
     "storage",
     "activeTab"
   ],
   "host_permissions": [
-    "https://saltgardenia.github.io/HFUT-CS-Online/*"
+    "https://saltgardenia.github.io/HFUT-CS-Online/*",
+    "https://worker.junpgle.me/*"
   ],
   "action": {
     "default_title": "__MSG_actionTitle__",
@@ -37,5 +38,8 @@
     }
   ],
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsNWXDXIvsFnzh3s1GR7PiU03dEqikUk+4NZH1aofosvtZiZQtSrprfqbE5oKnoT3EGYLMek9frqGutdcBdMzzKg29lmGCgX/+b98K64hbRTX2YB+5y06JtOyUsduMaExsWhlbpSpEO613HsXP1INxvukhgRVzjgp9vH6ZTkb+9ylPWFxqlaDQKuxIfo5PBXGSDhiWanRML5mwfrpK1UBf3bPiquQKv2HJ3fIpLyjYtDBbJvaxJzgXf+tvAye54spXNEJ3IDZk7oNgBuJeYo9osxhp/Wu2duF7Lw04PIRvIX+gqexf/2o6YRVjm/0wy/jOH9y1HZElfQlU9HjM/vHbQIDAQAB",
-  "default_locale": "zh_CN"
+  "default_locale": "zh_CN",
+  "background": {
+    "service_worker": "background.js"
+  }
 }
