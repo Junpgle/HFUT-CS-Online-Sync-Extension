@@ -148,8 +148,11 @@
     absorb(cloud); // controls first, before reading this device's site records
     collectChanges(siteSnapshot());
     writeCloudToSite();
-    await publish();
+    // Independent cloud sync must still run when the browser sync quota is full.
+    let browserError;
+    try{await publish();}catch(err){browserError=err;}
     await remoteSync(); // throttled; backend is not polled every 3 seconds
+    if(browserError)throw browserError;
   }
   function remoteControlsForRequest(cloud) {
     const controls={...(state.remoteControls||{})};
@@ -180,7 +183,9 @@
       state.reading=S.mergeReading(state.reading,result.reading||{});
       absorb(cloud); // Remote disable flags must be applied before any site writes.
       writeCloudToSite();
-      await publish();
+      try{await publish();}catch(err){
+        console.warn('[HFUT Site Sync] Browser sync failed after independent cloud exchange:',err);
+      }
       remoteError='';
     } catch(err) {
       remoteError=String(err?.message||err);
@@ -218,8 +223,10 @@
         Math.abs(prior.percent-candidate.percent) < 2 && now-prior.updated < 30000) return;
     state.reading[route] = candidate;
     lastReadingAt = now;
-    await publish();
-    await remoteSync(); // opportunistic send, throttled to at most once per minute
+    let browserError;
+    try{await publish();}catch(err){browserError=err;}
+    await remoteSync(); // opportunistic upload, at most once per minute
+    if(browserError)throw browserError;
   }
   function scheduleReading() {
     if (!currentRoute()) return;
@@ -280,8 +287,10 @@
     const cloud = await chrome.storage.sync.get(null);
     absorb(cloud);
     const applied = writeCloudToSite({initial:true});
-    await publish();
-    await remoteSync(); // initial account sync, before the user opens the popup
+    try{await publish();}catch(err){
+      console.warn('[HFUT Site Sync] Browser sync unavailable:',err);
+    }
+    await remoteSync(); // independent cloud can work even if browser storage is full
     previousRoute = currentRoute();
     if (applied.changedActive) {
       // The React practice view may have read old results before asynchronous hydration.
