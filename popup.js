@@ -23,6 +23,9 @@
     ]);
     const device=local[S.STATE_KEY]||{};
     const disabled=S.disabledCourses(cloud);
+    for(const [course,control] of Object.entries(device.remoteControls||{})){
+      if(control?.disabled===true)disabled[course]=true;
+    }
     const records=S.mergeAll(S.cloudQuiz(cloud),device.records||{});
     const reading=S.mergeReading(S.cloudReading(cloud),device.reading||{});
     for(const c of Object.keys(disabled)){
