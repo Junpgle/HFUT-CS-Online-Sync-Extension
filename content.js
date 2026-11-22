@@ -168,7 +168,7 @@
   }
   async function remoteSync(force=false){
     const now=Date.now();
-    if(!force&&now-lastRemoteAttempt<60000)return;
+    if(!force&&now-lastRemoteAttempt<180000)return;
     lastRemoteAttempt=now;
     try {
       const cloud=await chrome.storage.sync.get(null);
@@ -225,7 +225,7 @@
     lastReadingAt = now;
     let browserError;
     try{await publish();}catch(err){browserError=err;}
-    await remoteSync(); // opportunistic upload, at most once per minute
+    await remoteSync(); // opportunistic upload, at most once per 3 minutes
     if(browserError)throw browserError;
   }
   function scheduleReading() {
