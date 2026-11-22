@@ -57,8 +57,12 @@
         const keys=S.courseCloudKeys(cloud,c);
         if(keys.length)await chrome.storage.sync.remove(keys);
       }
+      const device=(await chrome.storage.local.get(S.STATE_KEY))[S.STATE_KEY]?.deviceId||'unknown';
+      const remote=await chrome.runtime?.sendMessage?.({type:'REMOTE_COURSE',course:c,disabled:true,t:control[S.disabledKey(c)].updated,d:device});
       await render();
-      status('已清除「'+name+'」云端同步记录。网站本地数据仍保留。');
+      if(remote?.enabled&&remote?.ok===false)
+        status('浏览器云端已清除，但 Question-Bank 云端未更新：'+remote.error,true);
+      else status('已清除「'+name+'」云端同步记录。网站本地数据仍保留。');
     }catch(e){
       await render().catch(()=>{});
       status('清除失败：'+e.message+'。请重试。',true);
@@ -67,8 +71,12 @@
   async function enableCourse(c){
     try{
       await chrome.storage.sync.remove(S.disabledKey(c));
+      const device=(await chrome.storage.local.get(S.STATE_KEY))[S.STATE_KEY]?.deviceId||'unknown';
+      const remote=await chrome.runtime?.sendMessage?.({type:'REMOTE_COURSE',course:c,disabled:false,t:Date.now(),d:device});
       await render();
-      status('已恢复「'+courseTitle(c)+'」同步。打开或刷新课程网页后会重新上传本地记录。');
+      if(remote?.enabled&&remote?.ok===false)
+        status('浏览器同步已恢复，Question-Bank 云端更新失败：'+remote.error,true);
+      else status('已恢复「'+courseTitle(c)+'」同步。打开或刷新课程网页后会重新上传本地记录。');
     }catch(e){status('恢复同步失败：'+e.message,true);}
   }
   async function render() {
@@ -242,7 +250,77 @@
     }catch(err){status('导入失败：'+err.message,true);}
     finally{e.target.value='';}
   });
+  async function cloudStatus(){
+    if(!chrome.runtime?.sendMessage)return;
+    const result=await chrome.runtime.sendMessage({type:'REMOTE_STATUS'});
+    if(!result?.ok)return;
+    $('remote-login-form').hidden=!!result.enabled;
+    $('remote-session').hidden=!result.enabled;
+    if(result.enabled) {
+      text($('remote-user'),'已登录：'+result.username);
+      text($('remote-last'),result.last
+        ?'独立云上次成功同步：'+when(result.last)
+        :'独立云尚未成功同步');
+    }
+    if(result.error)remoteMessage('独立云同步提醒：'+result.error,true);
+  }
+  function remoteMessage(message,error=false){
+    text($('remote-message'),message);
+    $('remote-message').classList.toggle('error',error);
+  }
+  $('remote-login-form').addEventListener('submit',async e=>{
+    e?.preventDefault?.();
+    const btn=$('remote-login');
+    btn.disabled=true;
+    try{
+      const result=await chrome.runtime.sendMessage({
+        type:'REMOTE_LOGIN', username:$('remote-username').value,
+        password:$('remote-password').value
+      });
+      $('remote-password').value=''; // Never persist plaintext passwords.
+      if(!result?.ok)throw new Error(result?.error||'登录失败');
+      remoteMessage('已登录 Question-Bank，正在与独立云服务交换学习记录…');
+      await cloudStatus();
+      const tab=await activeSiteTab();
+      if(tab) {
+        const synced=await chrome.tabs.sendMessage(tab.id,{type:'SYNC_NOW'});
+        if(synced?.remoteError)throw new Error(synced.remoteError);
+        remoteMessage('已完成独立云同步。其他设备登录同一账号后可读取记录。');
+      }else remoteMessage('登录成功。打开 HFUT-CS-Online 网站后将自动同步。');
+      await cloudStatus();
+    }catch(err){remoteMessage('登录或同步失败：'+err.message,true);}
+    finally{btn.disabled=false;}
+  });
+  $('remote-now').addEventListener('click',async()=>{
+    const btn=$('remote-now');btn.disabled=true;
+    try{
+      const tab=await activeSiteTab();
+      if(!tab)throw new Error('请先打开 HFUT-CS-Online 网站');
+      const result=await chrome.tabs.sendMessage(tab.id,{type:'SYNC_NOW'});
+      if(result?.remoteError)throw new Error(result.remoteError);
+      remoteMessage('独立云双向同步完成；正在使用的做题页请刷新查看更新。');
+      await render();await cloudStatus();
+    }catch(err){remoteMessage('独立云同步失败：'+err.message,true);}
+    finally{btn.disabled=false;}
+  });
+  $('remote-logout').addEventListener('click',async()=>{
+    try{
+      await chrome.runtime.sendMessage({type:'REMOTE_LOGOUT'});
+      const tab=await activeSiteTab();
+      if(tab)await chrome.tabs.sendMessage(tab.id,{type:'REMOTE_SIGNOUT'}).catch(()=>{});
+      remoteMessage('已退出 Question-Bank；本机学习记录和服务器已有数据不会自动删除。');
+      await cloudStatus();
+    }catch(err){remoteMessage('退出失败：'+err.message,true);}
+  });
+  $('remote-delete').addEventListener('click',async()=>{
+    if(!confirm('确定永久删除此 Question-Bank 账号在独立云端保存的 HFUT-CS-Online 记录？\\n\\n题库数据和浏览器本地数据不会被清除，重新同步可能再次上传。'))return;
+    const result=await chrome.runtime.sendMessage({type:'REMOTE_DELETE_ALL'});
+    if(result?.ok)remoteMessage('独立云学习记录已删除。注意：下次同步可能重新上传本地记录。');
+    else remoteMessage('删除失败：'+(result?.error||'未知错误'),true);
+    await cloudStatus();
+  });
   try{await render();}catch(err){status('读取同步数据失败：'+err.message,true);}
+  cloudStatus().catch(()=>{});
   chrome.storage.onChanged.addListener((_changes,area)=>{
     if(area==='sync'||area==='local')render().catch(()=>{});
   });
