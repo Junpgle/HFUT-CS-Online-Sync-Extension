@@ -29,6 +29,8 @@ jobs:
         run: node tests/test-content.cjs
       - name: Quota and course management tests
         run: node tests/test-popup.cjs
+      - name: Question-Bank cloud transport tests
+        run: node tests/test-background.cjs
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
