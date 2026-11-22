@@ -273,6 +273,7 @@
   }
   $('remote-login-form').addEventListener('submit',async e=>{
     e?.preventDefault?.();
+    if(!confirm('启用 Question-Bank 独立云同步后，本机已有的 HFUT-CS-Online 做题记录与阅读位置将上传到此 Question-Bank 账号并存储在 Cloudflare。该服务不提供端到端加密。\\n\\n确认登录并启用？'))return;
     const btn=$('remote-login');
     btn.disabled=true;
     try{
