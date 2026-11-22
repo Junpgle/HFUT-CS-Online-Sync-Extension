@@ -71,3 +71,14 @@ h2 { margin:0; font-size:13px; } .panel-title span { color:var(--muted); font-si
 .manage-row button.danger:hover{background:#fff1f1}
 .manage-row button:disabled{opacity:.5;cursor:wait}
 .manage-row.disabled{opacity:.86}
+
+/* Optional independent Question-Bank account sync */
+.remote-panel { margin-top:13px; }
+.remote-form { display:flex;flex-direction:column;gap:8px;margin-top:10px; }
+.remote-form input { background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 11px;font:inherit;min-width:0;width:100%; }
+.remote-form button { border-radius:9px;padding:10px; }
+.remote-user {font-size:12px;font-weight:600;color:var(--accent);margin:8px 0 4px;}
+.remote-actions {display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+.remote-actions button {padding:7px 9px;border-radius:8px;border:1px solid var(--line);}
+.remote-actions .danger {color:#ae3733;background:#fff;}
+.remote-panel [hidden] {display:none!important;}
