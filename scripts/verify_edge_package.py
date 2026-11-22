@@ -13,7 +13,7 @@ from zipfile import ZipFile
 
 EXPECTED = {
     "manifest.json", "shared.js", "content.js",
-    "popup.html", "popup.css", "popup.js",
+    "popup.html", "popup.css", "popup.js", "background.js",
     "icons/icon16.png", "icons/icon48.png", "icons/icon128.png",
     "_locales/zh_CN/messages.json", "_locales/en/messages.json",
 }
@@ -69,7 +69,8 @@ def inspect_package(filename: Path) -> None:
         assert manifest["manifest_version"] == 3
         assert re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", manifest["version"])
         assert "key" not in manifest, "Do not ship unpacked-install key in the store ZIP"
-        assert manifest.get("host_permissions") == [SITE]
+        assert manifest.get("host_permissions") == [SITE, "https://worker.junpgle.me/*"]
+        assert manifest.get("background", {}).get("service_worker") == "background.js"
         assert set(manifest["permissions"]) == {"storage", "activeTab"}
         scripts = manifest["content_scripts"]
         assert len(scripts) == 1 and scripts[0]["matches"] == [SITE]
