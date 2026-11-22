@@ -22,6 +22,7 @@ jobs:
           node --check shared.js
           node --check content.js
           node --check popup.js
+          node --check background.js
       - name: Record merge tests
         run: node tests/test-shared.cjs
       - name: Two-device integration tests
