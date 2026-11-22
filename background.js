@@ -28,7 +28,7 @@ async function apiCall(route, method='POST', data, token) {
 async function recordError(e) {
   const message = String(e?.name==='AbortError'?'连接超时，请检查网络':e?.message||e).slice(0,240);
   await chrome.storage.local.set({[ERROR]:message});
-  return {ok:false,error:message,expired:e?.status===401};
+  return {ok:false,enabled:true,error:message,expired:e?.status===401};
 }
 async function handler(msg){
   if(msg?.type==='REMOTE_STATUS'){
