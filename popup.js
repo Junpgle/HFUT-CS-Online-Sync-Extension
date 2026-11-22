@@ -192,7 +192,7 @@
       await render();
       if(result?.error)status('同步失败：'+result.error,true);
       else if(result?.pending)status('已接收数据。当前做题页可能仍显示旧结果，请刷新网页。');
-      else status('已同步到浏览器云存储。其他设备可能需要稍后刷新。');
+      else status('已更新浏览器同步存储。只有浏览器实际启用扩展设置同步时，才会自动传到其他设备。');
     } catch { status('未能联系网页扩展脚本。请刷新网站后重试。',true); }
     finally{$('sync').disabled=false;}
   });
