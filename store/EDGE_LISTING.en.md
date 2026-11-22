@@ -12,7 +12,7 @@ Sync quiz progress and reading positions on HFUT-CS-Online, with course manageme
 
 ## Full description (paste into Description)
 
-HFUT-CS-Online Study Sync is an independent browser extension that helps students keep their learning progress across desktop computers while using the HFUT-CS-Online course review website. It adds cross-device progress synchronization without requiring any changes to the website or a separate sign-in service.
+HFUT-CS-Online Study Sync is an independent browser extension that helps students keep their learning progress across desktop computers while using the HFUT-CS-Online course review website. It adds cross-device progress synchronization without requiring changes to the website. Browser account sync remains available, while an optional Question-Bank account sign-in enables independent cloud sync.
 
 **Key features**
 
@@ -20,7 +20,8 @@ HFUT-CS-Online Study Sync is an independent browser extension that helps student
 2. **Continue reading.** It remembers the last reading location, page title, and approximate progress on supported course pages. Open the extension popup to return to recent pages.
 3. **Storage usage and course controls.** View the storage used in your browser's roughly 100 KiB sync quota. Check individual course sizes, remove cloud data for courses you no longer need, and re-enable synchronization when required.
 4. **Learning overview.** Review the number of recorded quiz answers, correct answers, and recently viewed learning pages by course.
-5. **JSON backup and restore.** Export or import local backup files to retain a copy of your progress or transfer it manually between browsers.
+5. **Optional Question-Bank cloud sync.** Sign in with an existing Question-Bank account to exchange progress between desktops and Android Edge devices using the developer's Cloudflare Worker and D1 database. This service is OFF until you sign in. It is separate from browser account synchronization.
+6. **JSON backup and restore.** Export or import local backup files to retain a copy of your progress or transfer it manually between browsers.
 
 **How it works**
 
@@ -28,9 +29,9 @@ Install the extension and open the public HFUT-CS-Online website. Existing compa
 
 **Privacy and limitations**
 
-The extension only operates on the HFUT-CS-Online website. It does not read passwords, cookies, or unrelated browsing history. Learning data stays in the browser's local extension storage and the browser provider's synchronization storage. There is no developer-operated backend, advertising network, or analytics SDK. Removing a course's cloud records does not delete the website's own local practice records.
+The extension only operates on the HFUT-CS-Online website. It does not read passwords, cookies, or unrelated browsing history. Learning data stays in the browser's local extension storage and the browser provider's synchronization storage. If you enable independent sync, your Question-Bank sign-in is submitted over HTTPS to the developer's Cloudflare backend; a JWT is retained in extension-local storage and course progress is stored in a separate account-scoped D1 table. No plaintext password is retained by the extension. Data is not end-to-end encrypted. There is no advertising network or analytics SDK. Removing a course's cloud records does not delete the website's own local practice records.
 
-Chrome and Edge account sync spaces are separate. Mobile browsers typically cannot install this desktop extension. Browser sync storage has capacity limits. The current popup interface is primarily in **Simplified Chinese**; the English translation covers extension and store metadata.
+Chrome and Edge account sync spaces are separate. Android Edge can install the extension; browser-native extension settings sync may not run there. Version 2.2.0 adds optional independent cloud synchronization (cross-device results still require real-device confirmation). Browser sync storage has capacity limits. The current popup interface is primarily in **Simplified Chinese**; the English translation covers extension and store metadata.
 
 This is an independent third-party project and is **not officially affiliated with HFUT-CS-Online, Hefei University of Technology, or Microsoft**.
 
