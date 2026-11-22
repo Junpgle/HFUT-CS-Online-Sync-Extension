@@ -13,6 +13,27 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 - Edge 桌面端和 Android Edge 手机／平板均已实测安装成功。**移动端能安装不代表能跨设备同步**；当前移动端浏览器同步限制见下方。
 - 需要使用同一个商店扩展 ID 和同一 Microsoft 同步账号进行跨电脑同步。直接从 GitHub 源码「加载已解压的扩展」可能产生与商店版不同的扩展 ID，二者的 `chrome.storage.sync` 数据不会自动互通。
 
+## v2.2.0：可选 Question-Bank 账号云同步（待商店版实机验证）
+
+针对 Android Edge 的 `Extension settings = Not Running` 问题，**v2.2.0 在原有浏览器 `storage.sync` 之外增加了一条独立的跨设备通道**。此版本的源码和构建产物已经更新，需在 Edge Partner Center 提交升级包；以下描述为功能实现说明，**不代表 v2.2.0 已通过真实手机、平板的同步测试**。
+
+- 后端直接复用现有 [HFUT-QuestionBank](https://github.com/Junpgle/HFUT-QuestionBank) 的 `hfut-backend`（Cloudflare Workers + D1），API 为 `https://worker.junpgle.me/api`。
+- **使用同一 Question-Bank 用户名和密码登录**，无需另行注册；由于扩展与题库网站各自隔离，扩展中仍需手动登录一次。
+- 只有用户主动登录扩展后，才通过独立 HTTPS API 同步题号、答案状态、阅读进度、修改时间、设备标识及课程停用设置。密码仅用于登录请求，扩展本地保存短期有效的 JWT，而非密码。
+- 与原题库的 `UserProgress` 表隔离，新数据保存在同一 D1 的 `SiteSyncState` 表中；使用乐观并发版本检查、时间戳和设备标识合并修改，不会覆盖 Question-Bank 原有刷题进度。
+- 记录在打开学习网站时自动拉取，在持续浏览时节流交换（至多每分钟尝试一次），也可在弹窗中手动同步。服务器不可用时浏览器本地进度仍保留。电脑之间原有 `chrome.storage.sync` 不受影响。
+- 在登录区域可以退出账号或删除该 Question-Bank 账号的独立云学习记录。**删除后，若其他设备仍已登录并继续同步，本地学习记录可能重新上传**，建议先退出所有设备。
+- 本功能由开发者运营的 Cloudflare 服务器提供，**默认关闭，不是端到端加密**；登录即表示学习记录会存储到独立云服务。详情见 [隐私政策](PRIVACY.md)。
+
+### 使用方式
+
+1. 正式版升级至 v2.2.0 后，打开扩展弹窗的「Question-Bank 账号云同步」。
+2. 输入已有的 Question-Bank 用户名、密码并登录；如尚无账号，请先在 Question-Bank 网站注册和完成邮箱验证。
+3. 在其他设备的同一商店扩展里使用相同 Question-Bank 账号登录，并打开 [HFUT-CS-Online](https://saltgardenia.github.io/HFUT-CS-Online/)。
+4. 浏览器同步功能不必在 Android 上运行，但独立 API 必须能够从该设备正常访问；登录成功后按需点击「立即同步」，刷新已打开的做题页面读取最新记录。
+
+**注意：** 以下 v2.1.4 实测表和截图记录的是新增独立云同步之前的真实环境。新同步方案仍需完成三设备上线实测，不能把该历史结果写成 v2.2.0 的测试结论。
+
 ## 实际测试结果（2026-11-22）
 
 以下是维护者使用真实设备测试的结果，不是仅依据模拟测试或商店审核推断：
@@ -107,7 +128,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 
 ## 数据保护与限制
 
-- 只获得浏览器 `storage`、`activeTab` 权限，以及此网站的受限访问权限；无额外第三方服务器、无 Cookie 访问权限。
+- 浏览器权限包含 `storage`、`activeTab`，指定学习网站访问，以及仅用于可选云同步的 `https://worker.junpgle.me/*` API 主机权限；不请求 Cookie 或所有网站访问。
 - Chrome / Edge 的 `storage.sync` 存在总量约 100 KiB、每项约 8 KiB 的配额及写入速率方面的限制。题库很大时可能超额，扩展会保留本地数据、显示同步失败提醒，支持导出 JSON。
 - 各课程题目按哈希分成 16 个分片，以减小单项数据体积。
 - 读取远端同步结果后，扩展不会在正在使用的答题页内直接篡改 React 内存状态；如其他设备有更新，请刷新当前答题页面。
@@ -124,9 +145,10 @@ node --check popup.js
 node tests/test-shared.cjs
 node tests/test-content.cjs
 node tests/test-popup.cjs
+node tests/test-background.cjs
 ```
 
-源码结构：`manifest.json` 扩展清单、`shared.js` 数据结构/合并规则、`content.js` 自动同步与阅读检测、`popup.html/css/js` 操作面板、`icons/` 图标、`tests/` 回归检查。
+源码结构：`manifest.json` 扩展清单、`shared.js` 数据结构/合并规则、`content.js` 自动同步与阅读检测、`background.js` Question-Bank 独立云 HTTPS 传输、`popup.html/css/js` 操作面板、`icons/` 图标、`tests/` 回归检查。
 
 ## Microsoft Edge 加载项商店发布
 
@@ -144,7 +166,7 @@ node tests/test-popup.cjs
 
 ```bash
 python scripts/package_edge.py
-python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.1.4.zip
+python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.2.0.zip
 ```
 
 **语言本地化：** 自 v2.1.2 起，`manifest.json` 将 `default_locale` 设置为 `zh_CN`，并通过 `__MSG_extensionName__`、`__MSG_extensionDescription__` 等引用分别读取 `_locales/zh_CN/messages.json` 和 `_locales/en/messages.json`。这能让 Edge 商店识别 **简体中文 / English** 两种商品语言。扩展弹窗目前主要是中文界面，英文语言包覆盖扩展名称、简短说明和工具栏提示，并非全套界面翻译。
