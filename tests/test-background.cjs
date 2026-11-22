@@ -5,6 +5,7 @@ const vm=require('node:vm');
 const script=fs.readFileSync(path.join(__dirname,'../background.js'),'utf8');
 const values={}, requests=[];
 let listener=null;
+let failExchange=false;
 const chrome={
   runtime:{onMessage:{addListener(fn){listener=fn;}}},
   storage:{local:{
@@ -16,7 +17,10 @@ const chrome={
 async function fetchMock(url,options){
   requests.push({url,options});
   if(url.endsWith('/login'))return {ok:true,json:async()=>({token:'test-jwt',user:{id:7,username:'student',email:'test@example.test'}})};
-  if(url.endsWith('/site-sync/exchange'))return {ok:true,json:async()=>({records:{net:{q1:{v:'right',t:5,d:'desktop'}}},reading:{},controls:{}})};
+  if(url.endsWith('/site-sync/exchange')){
+    if(failExchange)return {ok:false,status:503,json:async()=>({error:'Cloudflare 服务不可用'})};
+    return {ok:true,json:async()=>({records:{net:{q1:{v:'right',t:5,d:'desktop'}}},reading:{},controls:{}})};
+  }
   if(url.endsWith('/site-sync/course'))return {ok:true,json:async()=>({control:{disabled:true,t:7,d:'mobile'}})};
   if(url.endsWith('/site-sync'))return {ok:true,json:async()=>({success:true})};
   throw Error('unexpected route');
@@ -38,6 +42,12 @@ function call(msg){
   const sync=await call({type:'REMOTE_EXCHANGE',records:{net:{q1:{v:'right',t:5,d:'desktop'}}}});
   assert.equal(sync.ok,true);
   assert.equal(sync.records.net.q1.v,'right');
+  failExchange=true;
+  const failed=await call({type:'REMOTE_EXCHANGE',records:{}});
+  assert.equal(failed.ok,false);
+  assert.equal(failed.enabled,true,'signed-in network errors must not be mistaken for disabled cloud sync');
+  assert.match(failed.error,/Cloudflare/);
+  failExchange=false;
   assert.equal(requests.at(-1).options.headers.Authorization,'Bearer test-jwt');
   const course=await call({type:'REMOTE_COURSE',course:'net',disabled:true,t:7,d:'mobile'});
   assert.equal(course.control.disabled,true);
