@@ -4,6 +4,51 @@
 
 https://saltgardenia.github.io/HFUT-CS-Online/
 
+## 正式版下载
+
+**已上架 Microsoft Edge 扩展应用商店：** [HFUT-CS-Online 全站学习同步 — 立即安装](https://microsoftedge.microsoft.com/addons/detail/ladgbknkfnbpmdfmjffhhbiajjceicip)
+
+- **商店扩展 ID**：`ladgbknkfnbpmdfmjffhhbiajjceicip`
+- **实测商店版本**：v2.1.4（2026-11-22）
+- Edge 桌面端和 Android Edge 手机／平板均已实测安装成功。**移动端能安装不代表能跨设备同步**；当前移动端浏览器同步限制见下方。
+- 需要使用同一个商店扩展 ID 和同一 Microsoft 同步账号进行跨电脑同步。直接从 GitHub 源码「加载已解压的扩展」可能产生与商店版不同的扩展 ID，二者的 `chrome.storage.sync` 数据不会自动互通。
+
+## 实际测试结果（2026-11-22）
+
+以下是维护者使用真实设备测试的结果，不是仅依据模拟测试或商店审核推断：
+
+| 场景 | 实测结果 | 说明 |
+| --- | --- | --- |
+| 两台桌面 Edge 之间 | ✅ 已成功 | 同一 Microsoft 账号下，已实测学习记录跨电脑同步；与单元测试、双设备模拟测试区分 |
+| Android Edge 手机安装与运行 | ✅ 已成功 | 商店版 v2.1.4 可以安装，弹窗可显示学习统计、阅读记录及 `storage.sync` 空间占用 |
+| Android Edge 平板安装与运行 | ✅ 已成功 | 商店版 v2.1.4 可安装、可运行 |
+| Android 手机 ↔ 平板 | ⚠️ 未能同步 | 两端能分别记录学习数据，但实测无法自动交换进度 |
+| Android ↔ 桌面 Edge | ⚠️ 未能同步 | 已核对相同 Microsoft 账号和相同商店扩展 ID，仍未实现进度互通 |
+
+**已观察到的原因线索：** 在 `edge://sync-internals` 的 **Type Info** 中，桌面 Edge 的 `Extensions` 和 **`Extension settings` 均为 `Running`**；而测试时 Android Edge 157.0.4341.53 的 `Extensions` 为 `Running`（0 条），**`Extension settings` 为 `Not Running`（0 条）**。这与扩展使用 `chrome.storage.sync` 传递进度、移动端未实现跨设备传输的现象一致。此处是当前版本与设备环境的实测状态，**不表示所有 Android Edge 版本都永久不支持扩展数据同步**。
+
+**重要：** 弹窗里的「本机最近同步」「云端同步空间」反映当前浏览器 `storage.sync` API 的本地读写和容量统计，**不能单独证明数据已上传微软服务器或到达其他设备**。浏览器未提供扩展设置的账号同步时，该存储仍可正常读写。移动设备之间需要临时迁移数据，可以使用 JSON 导出／导入；不要把安装成功当作云同步成功。
+
+## 真实截图
+
+以下截图来自维护者的实测设备，公开时仅保留了界面与同步状态相关区域；`sync-internals` 中可能包含账号／令牌的其他字段未上传。
+
+<table>
+  <tr>
+    <td align="center" width="38%"><strong>Android Edge 扩展弹窗</strong><br><img src="docs/screenshots/android-popup.jpg" alt="Android Edge 扩展面板：两条阅读记录与本机同步存储占用" width="300"><br><sub>阅读页面 2，存储占用 328 B；仅代表本机读写成功</sub></td>
+    <td align="center"><strong>Edge 商店版安装详情</strong><br><img src="docs/screenshots/edge-store-installed.png" alt="Microsoft Edge 商店版 v2.1.4 扩展安装详情及扩展 ID" width="500"><br><sub>v2.1.4，来自 Microsoft Edge 扩展应用商店</sub></td>
+  </tr>
+</table>
+
+**桌面与 Android 同步数据类型对照：**
+
+<table>
+  <tr>
+    <td align="center"><strong>桌面 Edge：Extension settings = Running</strong><br><img src="docs/screenshots/desktop-sync-types.png" alt="桌面 Edge sync-internals 显示 Extension settings Running" width="450"></td>
+    <td align="center"><strong>Android Edge：Extension settings = Not Running</strong><br><img src="docs/screenshots/android-sync-types.jpg" alt="Android Edge sync-internals 显示 Extension settings Not Running" width="385"></td>
+  </tr>
+</table>
+
 ## 功能
 
 - **全站做题同步**：自动识别各门课程的 `*-practice-progress-v1` 本地记录，以及算法课的 `practice-progress-v1`。按「课程 + 题目 ID」保存答对、答错、看过答案等状态，不会混淆不同课程相同题号。
@@ -19,13 +64,22 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 
 ## 安装
 
-1. 打开 [GitHub 仓库](https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension)，选择 **Code → Download ZIP**，解压。
+### Microsoft Edge 商店正式版（推荐）
+
+1. 在电脑、Android 手机或平板的 Edge 中打开 [Edge 商店安装页](https://microsoftedge.microsoft.com/addons/detail/ladgbknkfnbpmdfmjffhhbiajjceicip)。
+2. 选择「获取」进行安装。在支持同步的桌面 Edge 上，登录同一 Microsoft 账号，开启「扩展」同步。
+3. 访问 [HFUT-CS-Online 学习网站](https://saltgardenia.github.io/HFUT-CS-Online/)，打开扩展弹窗查看进度和阅读记录。
+
+> **Android 注意：** 已实测手机和平板能安装商店版，但当前 `Extension settings` 在 Android Edge 的同步类型中显示 `Not Running`，学习记录不能依赖它自动与电脑或另一台 Android 设备同步；需要时使用 JSON 备份手动迁移。
+
+### 从源码加载（开发／调试）
+
+1. 打开 [GitHub 仓库](https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension)，选择 **Code → Download ZIP** 并解压。
 2. Chrome 地址栏输入 `chrome://extensions/`，Edge 输入 `edge://extensions/`。
 3. 开启开发者模式，选择 **加载已解压的扩展程序**，选中包含 `manifest.json` 的根目录。
-4. 多台电脑使用同一 Chrome 账号（或同一 Edge 账号），并在浏览器设置中开启扩展同步。
-5. 正常浏览网站。扩展弹窗可查看进度、触发同步、导出备份和跳转到阅读位置。
+4. 在学习网站测试扩展。注意本地解压版和 Edge 商店版可能有不同扩展 ID，无法仅凭相同 Microsoft 账号自动共享同步数据。
 
-> 注意：Chrome 和 Edge 的同步云空间互不相通；手机端通常不支持安装此类桌面扩展。不同浏览器请使用 JSON 备份迁移。
+> Chrome 与 Edge 的同步服务互不相通。Chrome Android 不支持通过 Chrome Web Store 常规安装本扩展；Edge Android 可安装，但扩展设置同步能力以实际浏览器版本为准。
 
 ## 同步空间与课程清理
 
@@ -57,7 +111,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 - Chrome / Edge 的 `storage.sync` 存在总量约 100 KiB、每项约 8 KiB 的配额及写入速率方面的限制。题库很大时可能超额，扩展会保留本地数据、显示同步失败提醒，支持导出 JSON。
 - 各课程题目按哈希分成 16 个分片，以减小单项数据体积。
 - 读取远端同步结果后，扩展不会在正在使用的答题页内直接篡改 React 内存状态；如其他设备有更新，请刷新当前答题页面。
-- 当前版本已通过模拟双设备与课程停用/恢复场景测试；不同浏览器账号与网络环境下仍需按实际情况验证同步传播速度。
+- 已通过模拟双设备与课程停用/恢复场景测试，并且**真实桌面 Edge 设备之间同步成功**；Android Edge 的扩展设置同步功能目前未能运行，参见上方实测说明。
 
 ## 本地检查
 
@@ -76,7 +130,7 @@ node tests/test-popup.cjs
 
 ## Microsoft Edge 加载项商店发布
 
-扩展支持使用 Microsoft Edge Partner Center 发布。**不需要修改原网站。**
+扩展已通过 Microsoft Edge Partner Center 上架：[微软商店正式安装页](https://microsoftedge.microsoft.com/addons/detail/ladgbknkfnbpmdfmjffhhbiajjceicip)。**不需要修改原网站。**
 
 - [隐私政策（公开 URL）](PRIVACY.md)
 - [简体中文商店文案、关键词与图片尺寸](store/EDGE_LISTING.zh-CN.md)
