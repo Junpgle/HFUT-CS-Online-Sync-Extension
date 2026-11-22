@@ -15,7 +15,7 @@
     </header>
     <section class="status" aria-live="polite">
       <div class="statusrow"><span class="status-k">本机最近同步</span><span id="sync-time" class="status-v">—</span></div>
-      <p id="status-msg" class="hint" role="status">同一浏览器账号下跨设备同步，网站无需改动。</p>
+      <p id="status-msg" class="hint" role="status">浏览器同步用于桌面设备；Android 可登录 Question-Bank 账号开启独立云同步。</p>
     </section>
     <section class="panel quota-panel" aria-label="浏览器同步存储空间">
       <div class="panel-title"><h2>云端同步空间</h2><span id="quota-percent">0%</span></div>
@@ -42,6 +42,25 @@
       <div class="panel-title"><h2>课程同步管理</h2><span>按云端占用排序</span></div>
       <p class="manage-tip">清除会删除该课程在浏览器云端的做题与阅读记录，并停止后续上传；<strong>网站本地记录不受影响</strong>，可以随时重新启用同步。</p>
       <div id="course-manage" class="manage-list"><p class="empty">读取课程存储情况中…</p></div>
+    </section>
+    <section class="panel remote-panel" aria-label="Question-Bank 账号独立云同步">
+      <div class="panel-title"><h2>Question-Bank 账号云同步</h2><span>可选 · 手机 / 电脑互通</span></div>
+      <p class="manage-tip">复用 <strong>HFUT Question-Bank</strong> 的用户名和密码，学习记录将通过 <code>worker.junpgle.me</code> 保存到开发者的 Cloudflare D1。只有主动登录后才上传，浏览器原有同步照常工作。</p>
+      <form id="remote-login-form" class="remote-form">
+        <input id="remote-username" type="text" autocomplete="username" placeholder="Question-Bank 用户名" maxlength="32" required>
+        <input id="remote-password" type="password" autocomplete="current-password" placeholder="密码（仅用于本次登录）" required>
+        <button type="submit" id="remote-login" class="primary">登录并启用跨设备云同步</button>
+      </form>
+      <div id="remote-session" hidden>
+        <p id="remote-user" class="remote-user"></p>
+        <p id="remote-last" class="hint">尚未上传到独立云服务</p>
+        <div class="remote-actions">
+          <button id="remote-now" type="button" class="primary">立即同步</button>
+          <button id="remote-logout" type="button">退出账号</button>
+          <button id="remote-delete" type="button" class="danger">删除独立云记录</button>
+        </div>
+      </div>
+      <p id="remote-message" class="hint" role="status">未登录：不会将学习记录上传到开发者服务器。</p>
     </section>
     <div class="actions">
       <button id="sync" type="button" class="primary">立即同步</button>
