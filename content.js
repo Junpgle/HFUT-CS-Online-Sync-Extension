@@ -11,6 +11,8 @@
   let readingTimer = null;
   let lastReadingAt = 0;
   let previousRoute = null;
+  let lastRemoteAttempt = 0;
+  let remoteError = '';
   const SITE_NAME = 'HFUT-CS-Online';
 
   function serial(job) {
@@ -47,6 +49,11 @@
   function absorb(cloud) {
     const oldDisabled = state.disabled || {};
     state.disabled = S.disabledCourses(cloud);
+    // The optional Question-Bank backend can disable a course even when the
+    // current Android browser does not sync extension settings.
+    for(const [course,control] of Object.entries(state.remoteControls||{})){
+      if(control?.disabled === true) state.disabled[course]=true;
+    }
     // Re-enabled courses import the site's existing answers on the next observation.
     for (const course of Object.keys(oldDisabled)) {
       if (!state.disabled[course]) delete state.lastSite[course];
@@ -142,10 +149,48 @@
     collectChanges(siteSnapshot());
     writeCloudToSite();
     await publish();
+    await remoteSync(); // throttled; backend is not polled every 3 seconds
+  }
+  function remoteControlsForRequest(cloud) {
+    const controls={...(state.remoteControls||{})};
+    for(const [course,disabled] of Object.entries(S.disabledCourses(cloud))){
+      if(disabled){
+        const marker=cloud[S.disabledKey(course)];
+        const next={disabled:true,t:marker?.updated||0,d:state.deviceId};
+        const prev=controls[course];
+        if(!prev||next.t>prev.t||(next.t===prev.t&&next.d>prev.d)) controls[course]=next;
+      }
+    }
+    return controls;
+  }
+  async function remoteSync(force=false){
+    const now=Date.now();
+    if(!force&&now-lastRemoteAttempt<60000)return;
+    lastRemoteAttempt=now;
+    try {
+      const cloud=await chrome.storage.sync.get(null);
+      const result=await chrome.runtime.sendMessage({
+        type:'REMOTE_EXCHANGE', records:state.records,reading:state.reading,
+        controls:remoteControlsForRequest(cloud)
+      });
+      if(!result?.enabled)return; // Account cloud sync is opt-in.
+      if(!result.ok)throw new Error(result.error||'远程服务错误');
+      state.remoteControls=result.controls||{};
+      state.records=S.mergeAll(state.records,result.records||{});
+      state.reading=S.mergeReading(state.reading,result.reading||{});
+      absorb(cloud); // Remote disable flags must be applied before any site writes.
+      writeCloudToSite();
+      await publish();
+      remoteError='';
+    } catch(err) {
+      remoteError=String(err?.message||err);
+      console.warn('[HFUT Site Sync] Question-Bank 云同步：',remoteError);
+    }
   }
   async function freshSync() {
     await observe();
-    return { pending, error:lastError };
+    await remoteSync(true);
+    return { pending, error:lastError, remoteError };
   }
 
   function readingPosition(route) {
@@ -174,6 +219,7 @@
     state.reading[route] = candidate;
     lastReadingAt = now;
     await publish();
+    await remoteSync(); // opportunistic send, throttled to at most once per minute
   }
   function scheduleReading() {
     if (!currentRoute()) return;
@@ -217,6 +263,8 @@
       reading: S.cleanReading(stored?.reading),
       lastSite: hasBaseline && stored.lastSite && typeof stored.lastSite === 'object' ? stored.lastSite : {},
       disabled: {},
+      remoteControls: stored?.remoteControls && typeof stored.remoteControls==='object'
+        ?stored.remoteControls:{},
     };
     state.records = S.mergeAll({},stored?.records||{});
     if (hasBaseline) {
@@ -233,6 +281,7 @@
     absorb(cloud);
     const applied = writeCloudToSite({initial:true});
     await publish();
+    await remoteSync(); // initial account sync, before the user opens the popup
     previousRoute = currentRoute();
     if (applied.changedActive) {
       // The React practice view may have read old results before asynchronous hydration.
@@ -268,7 +317,16 @@
     });
     chrome.runtime.onMessage.addListener((m,_sender,respond) => {
       if (m?.type === 'SYNC_NOW') {
-        serial(freshSync).then(()=>respond({ok:true,pending,error:lastError}));
+        serial(freshSync).then(()=>respond({ok:true,pending,error:lastError,remoteError}));
+        return true;
+      }
+      if (m?.type === 'REMOTE_SIGNOUT') {
+        serial(async()=>{
+          state.remoteControls={};
+          const cloud=await chrome.storage.sync.get(null);
+          absorb(cloud);
+          await saveLocal();
+        }).then(()=>respond({ok:true}));
         return true;
       }
       if (m?.type === 'GET_STATUS') {
