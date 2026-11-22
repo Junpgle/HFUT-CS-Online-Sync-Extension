@@ -5,7 +5,7 @@ const API = 'https://worker.junpgle.me/api';
 const KEY = 'hfutsite_remote_session';
 const LAST = 'hfutsite_remote_last';
 const ERROR = 'hfutsite_remote_error';
-let pendingExchange = null;
+let exchangeQueue = Promise.resolve();
 async function currentSession() {
   return (await chrome.storage.local.get(KEY))[KEY] || null;
 }
@@ -55,8 +55,9 @@ async function handler(msg){
   if(msg?.type==='REMOTE_EXCHANGE'){
     const session=await currentSession();
     if(!session)return {ok:true,enabled:false};
-    if(pendingExchange)return pendingExchange;
-    pendingExchange=(async()=>{
+    // Serialize instead of deduplicating: simultaneous tabs may have
+    // different unsent progress; dropping a request would lose its changes.
+    const operation=exchangeQueue.then(async()=>{
       try{
         const result=await apiCall('/site-sync/exchange','POST',{
           records:msg.records||{},reading:msg.reading||{},controls:msg.controls||{}
@@ -65,9 +66,9 @@ async function handler(msg){
         return {ok:true,enabled:true,records:result.records||{},reading:result.reading||{},
           controls:result.controls||{},version:result.version};
       }catch(e){return recordError(e);}
-      finally{pendingExchange=null;}
-    })();
-    return pendingExchange;
+    });
+    exchangeQueue=operation.then(()=>{},()=>{});
+    return operation;
   }
   if(msg?.type==='REMOTE_COURSE'){
     const session=await currentSession();
