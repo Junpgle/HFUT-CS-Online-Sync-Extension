@@ -20,7 +20,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 ROOT = Path(__file__).resolve().parent.parent
 FILES = [
     "manifest.json", "shared.js", "content.js",
-    "popup.html", "popup.css", "popup.js",
+    "popup.html", "popup.css", "popup.js", "background.js",
     "icons/icon16.png", "icons/icon48.png", "icons/icon128.png",
     "_locales/zh_CN/messages.json", "_locales/en/messages.json",
 ]
@@ -45,7 +45,7 @@ def production_manifest() -> bytes:
                 raise ValueError(f"Missing localized message {locale}:{key}")
     if source.get("name") != "__MSG_extensionName__" or source.get("description") != "__MSG_extensionDescription__":
         raise ValueError("Localized manifest name/description references are required for Edge Store")
-    source["host_permissions"] = [OFFICIAL_SITE]
+    source["host_permissions"] = [OFFICIAL_SITE, "https://worker.junpgle.me/*"]
     scripts = source.get("content_scripts", [])
     if len(scripts) != 1:
         raise ValueError("Expected one explicitly scoped content script")
