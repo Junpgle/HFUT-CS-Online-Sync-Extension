@@ -44,6 +44,11 @@
     </section>
     <section class="panel remote-panel" aria-label="Question-Bank 账号独立云同步">
       <div class="panel-title"><h2>Question-Bank 云同步</h2></div>
+      <div id="remote-invite" class="remote-invite">
+        <span>想要增强同步？<small>与手机、平板互通学习记录</small></span>
+        <button id="remote-expand" type="button" class="secondary" aria-expanded="false" aria-controls="remote-login-area">去登录</button>
+      </div>
+      <div id="remote-login-area" hidden>
       <form id="remote-login-form" class="remote-form">
         <input id="remote-username" type="text" autocomplete="username" placeholder="Question-Bank 用户名" maxlength="32" required>
         <input id="remote-password" type="password" autocomplete="current-password" placeholder="密码" required>
@@ -61,6 +66,7 @@
       <div class="remote-account-links">
         <a href="https://qbank.junpgle.me/#/register" target="_blank" rel="noopener noreferrer">注册账号</a>
         <a href="https://qbank.junpgle.me/#/reset-password" target="_blank" rel="noopener noreferrer">忘记密码</a>
+      </div>
       </div>
       <p id="remote-message" class="hint" role="status" hidden></p>
     </section>
