@@ -14,6 +14,21 @@
   let lastRemoteAttempt = 0;
   let remoteError = '';
   const SITE_NAME = 'HFUT-CS-Online';
+  let lastInteraction=Date.now();
+  const dayKey=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+  function reportActivity(active=false,questions=[]){
+    if(!state || (!active&&!questions.length))return;
+    chrome.runtime.sendMessage({type:'STUDY_ACTIVITY',day:dayKey(),
+      device:state.deviceId,active,questions}).catch(()=>{});
+  }
+  for(const event of ['pointerdown','keydown','scroll','touchstart']){
+    addEventListener(event,()=>{lastInteraction=Date.now();},{passive:true});
+  }
+  // Time accrues only while the learning tab is visible, focused and recently used.
+  setInterval(()=>{
+    if(state && document.visibilityState==='visible' && document.hasFocus() &&
+       Date.now()-lastInteraction<=60000)reportActivity(true);
+  },15000);
 
   function serial(job) {
     queue = queue.catch(() => {}).then(job).catch(async err => {
@@ -132,15 +147,20 @@
     return { wrote, changedActive: initial && touchedActive };
   }
   function collectChanges(snapshot) {
+    const newlyAnswered=[];
     for (const [course, answers] of Object.entries(snapshot)) {
       if (state.disabled[course]) continue;
       const baseline = state.lastSite[course] || {};
       const delta = S.changes(baseline, answers, state.deviceId, Date.now());
       if (Object.keys(delta).length) {
+        for(const [id,item] of Object.entries(delta)){
+          if(item.v!==null) newlyAnswered.push(course+':'+id);
+        }
         state.records[course] = S.mergeRecords(state.records[course], delta);
         state.lastSite[course] = answers;
       }
     }
+    if(newlyAnswered.length)reportActivity(false,newlyAnswered);
   }
   async function observe(skipRemote=false) {
     if (!state) return;
