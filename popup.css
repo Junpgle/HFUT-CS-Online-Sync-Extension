@@ -82,6 +82,8 @@ h2 { margin:0; font-size:13px; } .panel-title span { color:var(--muted); font-si
 .remote-actions button {padding:7px 9px;border-radius:8px;border:1px solid var(--line);}
 .remote-actions .danger {color:#ae3733;background:#fff;}
 .remote-panel [hidden] {display:none!important;}
-.remote-account-links {display:flex;flex-direction:column;gap:6px;margin-top:12px;}
+.remote-account-links {display:flex;flex-direction:row;align-items:center;gap:18px;margin-top:12px;}
 .remote-account-links a {font-size:12px;color:var(--accent);text-decoration:none;font-weight:600;}
 .remote-account-links a:hover,.remote-account-links a:focus-visible {text-decoration:underline;}
+
+.remote-panel #remote-message[hidden] { display:none; }
