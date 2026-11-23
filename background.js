@@ -48,7 +48,7 @@ async function studyActivity(msg){
     const row=metrics[day]||{seconds:{},questions:[]};
     const previous=values[TICK]||0;
     // A single shared timestamp across visible tabs prevents double-counting.
-    if(msg.active===true&&now-previous>=10000) {
+    if(msg.active===true&&now-previous>=14000) {
       row.seconds[device]=Math.min(86400,(row.seconds[device]||0)+15);
       await chrome.storage.local.set({[TICK]:now});
     }
