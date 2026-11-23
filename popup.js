@@ -253,10 +253,20 @@
     }catch(err){status('导入失败：'+err.message,true);}
     finally{e.target.value='';}
   });
+  let loginExpanded=false;
+  $('remote-expand').addEventListener('click',()=>{
+    loginExpanded=true;
+    $('remote-invite').hidden=true;
+    $('remote-login-area').hidden=false;
+    $('remote-expand').setAttribute('aria-expanded','true');
+    $('remote-username').focus();
+  });
   async function cloudStatus(){
     if(!chrome.runtime?.sendMessage)return;
     const result=await chrome.runtime.sendMessage({type:'REMOTE_STATUS'});
     if(!result?.ok)return;
+    $('remote-invite').hidden=!!result.enabled;
+    $('remote-login-area').hidden=!!result.enabled || !loginExpanded;
     $('remote-login-form').hidden=!!result.enabled;
     $('remote-session').hidden=!result.enabled;
     if(result.enabled) {
@@ -312,6 +322,8 @@
   $('remote-logout').addEventListener('click',async()=>{
     try{
       await chrome.runtime.sendMessage({type:'REMOTE_LOGOUT'});
+      loginExpanded=false;
+      $('remote-expand').setAttribute('aria-expanded','false');
       const tab=await activeSiteTab();
       if(tab)await chrome.tabs.sendMessage(tab.id,{type:'REMOTE_SIGNOUT'}).catch(()=>{});
       remoteMessage('已退出 Question-Bank；本机学习记录和服务器已有数据不会自动删除。');
