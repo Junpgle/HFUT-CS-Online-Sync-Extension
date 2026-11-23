@@ -13,9 +13,9 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 - Edge 桌面端和 Android Edge 手机／平板均已实测安装成功。**移动端能安装不代表能跨设备同步**；当前移动端浏览器同步限制见下方。
 - 需要使用同一个商店扩展 ID 和同一 Microsoft 同步账号进行跨电脑同步。直接从 GitHub 源码「加载已解压的扩展」可能产生与商店版不同的扩展 ID，二者的 `chrome.storage.sync` 数据不会自动互通。
 
-## v2.2.0：可选 Question-Bank 账号云同步（待商店版实机验证）
+## v2.2.1：可选 Question-Bank 账号云同步（待商店版实机验证）
 
-针对 Android Edge 的 `Extension settings = Not Running` 问题，**v2.2.0 在原有浏览器 `storage.sync` 之外增加了一条独立的跨设备通道**。此版本的源码和构建产物已经更新，需在 Edge Partner Center 提交升级包；以下描述为功能实现说明，**不代表 v2.2.0 已通过真实手机、平板的同步测试**。
+针对 Android Edge 的 `Extension settings = Not Running` 问题，**v2.2.1 在原有浏览器 `storage.sync` 之外增加了一条独立的跨设备通道**。此版本的源码和构建产物已经更新，需在 Edge Partner Center 提交升级包；以下描述为功能实现说明，**不代表 v2.2.1 已通过真实手机、平板的同步测试**。
 
 - 后端直接复用现有 [HFUT-QuestionBank](https://github.com/Junpgle/HFUT-QuestionBank) 的 `hfut-backend`（Cloudflare Workers + D1），API 为 `https://worker.junpgle.me/api`。
 - **使用同一 Question-Bank 用户名和密码登录**，无需另行注册；由于扩展与题库网站各自隔离，扩展中仍需手动登录一次。
@@ -27,12 +27,12 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 
 ### 使用方式
 
-1. 正式版升级至 v2.2.0 后，打开扩展弹窗的「Question-Bank 账号云同步」。
+1. 正式版升级至 v2.2.1 后，打开扩展弹窗的「Question-Bank 账号云同步」。
 2. 输入已有的 Question-Bank 用户名、密码并登录；如尚无账号，请先在 Question-Bank 网站注册和完成邮箱验证。
 3. 在其他设备的同一商店扩展里使用相同 Question-Bank 账号登录，并打开 [HFUT-CS-Online](https://saltgardenia.github.io/HFUT-CS-Online/)。
 4. 浏览器同步功能不必在 Android 上运行，但独立 API 必须能够从该设备正常访问；登录成功后按需点击「立即同步」，刷新已打开的做题页面读取最新记录。
 
-**注意：** 以下 v2.1.4 实测表和截图记录的是新增独立云同步之前的真实环境。新同步方案仍需完成三设备上线实测，不能把该历史结果写成 v2.2.0 的测试结论。
+**注意：** 以下 v2.1.4 实测表和截图记录的是新增独立云同步之前的真实环境。新同步方案仍需完成三设备上线实测，不能把该历史结果写成 v2.2.1 的测试结论。
 
 ## 实际测试结果（2026-11-22）
 
@@ -166,7 +166,7 @@ node tests/test-background.cjs
 
 ```bash
 python scripts/package_edge.py
-python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.2.0.zip
+python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.2.1.zip
 ```
 
 **语言本地化：** 自 v2.1.2 起，`manifest.json` 将 `default_locale` 设置为 `zh_CN`，并通过 `__MSG_extensionName__`、`__MSG_extensionDescription__` 等引用分别读取 `_locales/zh_CN/messages.json` 和 `_locales/en/messages.json`。这能让 Edge 商店识别 **简体中文 / English** 两种商品语言。扩展弹窗目前主要是中文界面，英文语言包覆盖扩展名称、简短说明和工具栏提示，并非全套界面翻译。
