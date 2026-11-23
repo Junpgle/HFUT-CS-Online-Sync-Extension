@@ -82,6 +82,49 @@
       else status('已恢复「'+courseTitle(c)+'」同步。打开或刷新课程网页后会重新上传本地记录。');
     }catch(e){status('恢复同步失败：'+e.message,true);}
   }
+
+  function localDay(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function displayDuration(seconds){
+    const minutes=Math.floor(seconds/60);
+    return minutes>=60?Math.floor(minutes/60)+' 小时 '+minutes%60+' 分钟':minutes+' 分钟';
+  }
+  async function renderStudy(){
+    const result=await chrome.runtime.sendMessage({type:'STUDY_STATS'});
+    if(!result?.ok)return;
+    const metrics=result.metrics||{},today=localDay(new Date());
+    const stats=day=>{
+      const row=metrics[day]||{};
+      return {seconds:Object.values(row.seconds||{}).reduce((a,b)=>a+(Number(b)||0),0),
+        questions:new Set(row.questions||[]).size};
+    };
+    const current=stats(today);
+    text($('study-minutes'),displayDuration(current.seconds));
+    text($('study-questions'),current.questions+' 题');
+    const days=Array.from({length:7},(_,i)=>{
+      const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-(6-i));
+      return {day:localDay(d),weekday:['日','一','二','三','四','五','六'][d.getDay()]};
+    });
+    const values=days.map(({day})=>stats(day).seconds);
+    const max=Math.max(60,...values);
+    const chart=$('study-chart');chart.replaceChildren();
+    for(let i=0;i<days.length;i++){
+      const col=document.createElement('div');col.className='study-day'+(i===6?' today':'');
+      const value=document.createElement('span');value.className='study-value';
+      const minutes=Math.floor(values[i]/60);
+      text(value,minutes>=60?(minutes/60).toFixed(1)+'h':minutes+'m');
+      const wrap=document.createElement('div');wrap.className='study-bar-wrap';
+      const bar=document.createElement('div');bar.className='study-bar';
+      bar.style.height=(values[i]?Math.max(3,Math.round(values[i]/max*74)):0)+'px';
+      wrap.append(bar);
+      const label=document.createElement('span');label.className='study-day-label';
+      text(label,i===6?'今天':'周'+days[i].weekday);
+      col.title=days[i].day+'：'+displayDuration(values[i])+'，'+stats(days[i].day).questions+' 题';
+      col.append(value,wrap,label);chart.append(col);
+    }
+    chart.setAttribute('aria-label','近七天学习时长：'+days.map((d,i)=>d.day+' '+Math.floor(values[i]/60)+'分钟').join('；'));
+  }
   async function render() {
     const token=++renderToken;
     const data=await combined();
@@ -338,8 +381,12 @@
     await cloudStatus();
   });
   try{await render();}catch(err){status('读取同步数据失败：'+err.message,true);}
+  renderStudy().catch(()=>{});
   cloudStatus().catch(()=>{});
   chrome.storage.onChanged.addListener((_changes,area)=>{
-    if(area==='sync'||area==='local')render().catch(()=>{});
+    if(area==='sync'||area==='local'){
+      render().catch(()=>{});
+      renderStudy().catch(()=>{});
+    }
   });
 })();
