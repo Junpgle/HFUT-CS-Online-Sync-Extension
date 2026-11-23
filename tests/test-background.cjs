@@ -28,7 +28,7 @@ async function fetchMock(url,options){
   throw Error('unexpected route');
 }
 const vmContext={chrome,fetch:fetchMock,setTimeout,clearTimeout,AbortController,console,Date:MockDate};
-vm.runInNewContext(script,vmContext);
+vm.runInNewContext(script,{...vmContext});
 function call(msg){
   return new Promise((resolve,reject)=>{
     const keep=listener(msg,{id:'internal'},resolve);
@@ -68,7 +68,7 @@ function call(msg){
   assert.equal((await call({type:'REMOTE_EXCHANGE',records:{}})).skipped,undefined);
   assert.equal(exchangeCount(),3,'auto exchange allowed again after 5 minutes');
   // Restart MV3 service worker: local storage must retain throttle across restarts.
-  vm.runInNewContext(script,vmContext);
+  vm.runInNewContext(script,{...vmContext});
   assert.equal((await call({type:'REMOTE_EXCHANGE',records:{}})).skipped,true);
   assert.equal(exchangeCount(),3,'worker restarts cannot reset cooldown');
   // Failures are also throttled automatically, but manual retry stays available.
