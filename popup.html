@@ -54,6 +54,11 @@
         <input id="remote-password" type="password" autocomplete="current-password" placeholder="密码" required>
         <button type="submit" id="remote-login" class="primary">登录并同步</button>
       </form>
+      <div class="remote-account-links">
+        <a href="https://qbank.junpgle.me/#/register" target="_blank" rel="noopener noreferrer">注册账号</a>
+        <a href="https://qbank.junpgle.me/#/reset-password" target="_blank" rel="noopener noreferrer">忘记密码</a>
+      </div>
+      </div>
       <div id="remote-session" hidden>
         <p id="remote-user" class="remote-user"></p>
         <p id="remote-last" class="hint">尚未上传到独立云服务</p>
@@ -62,11 +67,6 @@
           <button id="remote-logout" type="button">退出账号</button>
           <button id="remote-delete" type="button" class="danger">删除独立云记录</button>
         </div>
-      </div>
-      <div class="remote-account-links">
-        <a href="https://qbank.junpgle.me/#/register" target="_blank" rel="noopener noreferrer">注册账号</a>
-        <a href="https://qbank.junpgle.me/#/reset-password" target="_blank" rel="noopener noreferrer">忘记密码</a>
-      </div>
       </div>
       <p id="remote-message" class="hint" role="status" hidden></p>
     </section>
