@@ -12,7 +12,7 @@ let exchangeQueue = Promise.resolve();
 const METRICS = 'hfutsite_study_metrics_v1';
 const TICK = 'hfutsite_study_last_tick_v1';
 let metricQueue=Promise.resolve();
-function metricDay(s) {return typeof s==='string' && /^20\\d{2}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$/.test(s);}
+function metricDay(s) {return typeof s==='string' && /^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(s);}
 function metricKey(s) {return typeof s==='string' && /^[a-z][a-z0-9-]{1,17}:[A-Za-z0-9:_-]{1,130}$/.test(s);}
 function mergeMetrics(a,b) {
   const out={};
