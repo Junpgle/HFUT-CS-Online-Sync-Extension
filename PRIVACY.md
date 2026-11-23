@@ -1,7 +1,7 @@
 # HFUT-CS-Online 全站学习同步扩展 · 隐私政策
 
-**最近更新：2026 年 11 月 22 日**  
-**适用版本：2.2.0 及后续未改变数据处理方式的版本**  
+**最近更新：2026 年 11 月 23 日**  
+**适用版本：2.2.0 及后续版本**  
 **维护者：Junpgle（独立扩展开发者）**
 
 本政策适用于浏览器扩展「HFUT-CS-Online 全站学习同步」，项目地址：
@@ -30,8 +30,9 @@ https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension
 | 记录更新时间、随机生成的设备标识 | 逐题合并不同设备的修改 |
 | 课程同步停用状态 | 避免已清除的课程再次自动上传 |
 | 同步成功或失败状态、同步空间用量 | 显示状态和空间占用 |
+| 学习日期、活跃学习秒数及当日作答题目 ID | 展示今日统计和近七日学习时长趋势、跨设备合并学习量 |
 
-扩展从指定网站的浏览器 `localStorage` 中读取与做题进度匹配的记录，并根据用户在该网站的滚动位置生成阅读记录。题目 ID 和阅读过的课程可能反映个人学习活动。
+扩展从指定网站的浏览器 `localStorage` 中读取与做题进度匹配的记录，并根据用户在该网站的滚动位置生成阅读记录。题目 ID 和阅读过的课程可能反映个人学习活动。学习时长仅在学习网站标签页可见、获得焦点且最近发生用户操作时按间隔近似累计，并非精确的专注时间；今日刷题数统计当天有作答变化的去重题目，不会从历史答题进度推算旧日期。
 
 **未启用独立云同步时**，扩展不读取用户的用户名、账号密码、Cookie、支付信息、其他网站的浏览历史，也不读取具体题目正文或答题时输入的文本。**主动登录 Question-Bank 时**，扩展通过 HTTPS 将用户输入的该网站用户名与密码提交至现有 `worker.junpgle.me/api/login` 验证；密码仅用于当次登录，不会由扩展持久化。扩展本机存储认证成功后获得的 JWT 和必要的用户名信息，服务端使用已有用户账号及数据库执行验证。
 
@@ -41,11 +42,11 @@ https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension
 - **扩展本地存储**：扩展使用 `chrome.storage.local` 存放本机同步状态和缓存。
 - **浏览器账号同步存储**：扩展使用 `chrome.storage.sync` 保存学习结果、阅读记录及课程停用设置。在用户的浏览器配置允许同步时，这些内容可能由浏览器提供商（Microsoft Edge 或 Google Chrome）通过其账号同步基础设施传输、存储并同步到其他设备。
 
-**可选的 Question-Bank 独立云同步：** 用户主动登录扩展中的 Question-Bank 账号后，扩展向 `https://worker.junpgle.me/api/site-sync/exchange` 发送当前课程的题目 ID、做题结果、阅读路径与位置、更新时间、随机设备标识和课程同步控制信息。后端使用 Cloudflare Workers + D1 处理并保存这些数据，仅允许经过 JWT 鉴权的同一账号访问。账号库与题库系统共用，但 HFUT-CS-Online 记录保存在独立 `SiteSyncState` 表，不与题库原有 `UserProgress` 表混用。同步接口不传输题目正文，不使用数据制作广告或分析用户画像。
+**可选的 Question-Bank 独立云同步：** 用户主动登录扩展中的 Question-Bank 账号后，扩展向 `https://worker.junpgle.me/api/site-sync/exchange` 发送当前课程的题目 ID、做题结果、阅读路径与位置、更新时间、随机设备标识和课程同步控制信息，以及最近约 90 天的每日学习时长、每日已作答题目 ID 及其设备标识。跨设备时长按设备分别累积、题目 ID 按日期去重合并。后端使用 Cloudflare Workers + D1 处理并保存这些数据，仅允许经过 JWT 鉴权的同一账号访问。账号库与题库系统共用，但 HFUT-CS-Online 记录保存在独立 `SiteSyncState` 表，不与题库原有 `UserProgress` 表混用。同步接口不传输题目正文，不使用数据制作广告或分析用户画像。
 
 此独立同步功能**默认关闭**；不登录便不会向开发者服务器上传学习记录。登录后账号令牌存储于当前浏览器扩展的本地存储空间（不存入浏览器 `storage.sync`），用于后续免重复输入密码；JWT 有有效期限。用户可在扩展里退出账号、请求删除该账号的独立云学习记录。删除后若设备仍已登录并继续同步，本地历史数据可能再次上传，应先退出或关闭各设备的云同步。服务器不主动提供端到端加密：Cloudflare 平台和具备服务器管理权限的维护者在技术上可以接触云端存储的学习进度，请勿把学习进度视为只有用户本人才能解密的数据。
 
-Cloudflare 是云基础设施提供商，可能根据其产品政策处理网络请求元数据。独立云记录在账号或对应云端记录被删除前持续保存；数据库备份和系统日志可能依服务商政策另外保留一定时间。数据使用 HTTPS 传输，但不保证在所有国家和地区的网络中均可用。扩展不包含广告 SDK 或行为分析 SDK。
+Cloudflare 是云基础设施提供商，可能根据其产品政策处理网络请求元数据。每日学习统计按滚动约 90 天保留，历史统计会被裁剪；其他独立云记录在账号或对应云端记录被删除前持续保存；数据库备份和系统日志可能依服务商政策另外保留一定时间。数据使用 HTTPS 传输，但不保证在所有国家和地区的网络中均可用。扩展不包含广告 SDK 或行为分析 SDK。
 
 **未登录独立云同步时**，开发者不接收上述学习进度，用户仍可使用浏览器本地存储、浏览器账号同步及 JSON 备份。浏览器提供商的同步服务遵循其自己的条款和隐私政策；扩展不承诺浏览器账号同步数据独立端到端加密。
 
@@ -92,4 +93,4 @@ https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension/issues
 
 ---
 
-**English summary:** This independent HFUT-CS-Online extension reads quiz progress and reading bookmarks from the specified study site. It always uses browser-local extension storage and may use the browser provider's sync storage. Starting with version 2.2.0, users may optionally sign in with their existing Question-Bank credentials: the login is sent to https://worker.junpgle.me/api/login over HTTPS; passwords are not stored by the extension. An authenticated JWT is kept in extension-local storage, and the developer's Cloudflare Worker and D1 database process and persist the course IDs, quiz statuses, reading positions, timestamps and device IDs in a separate account-scoped table. The optional service is off until sign-in, is not end-to-end encrypted, and provides logout and server data deletion. There are no ads or analytics SDKs. Please read the full Chinese policy above for data retention, deletion, limitations and third-party service processing.\n
+**English summary:** This independent HFUT-CS-Online extension reads quiz progress, reading bookmarks, and daily activity metrics (approximate active study seconds and unique answered question IDs) from the specified study site. It always uses browser-local extension storage and may use the browser provider's sync storage. Starting with version 2.2.0, users may optionally sign in with their existing Question-Bank credentials: the login is sent to https://worker.junpgle.me/api/login over HTTPS; passwords are not stored by the extension. An authenticated JWT is kept in extension-local storage, and the developer's Cloudflare Worker and D1 database process and persist the course IDs, quiz statuses, reading positions, timestamps and device IDs in a separate account-scoped table. The optional service is off until sign-in, is not end-to-end encrypted, and provides logout and server data deletion. There are no ads or analytics SDKs. Please read the full Chinese policy above for data retention, deletion, limitations and third-party service processing.\n
