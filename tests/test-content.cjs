@@ -13,6 +13,8 @@ function device(initial={},hash='#/net') {
   const site={};
   for(const [key,value] of Object.entries(initial))site[key]=JSON.stringify(value);
   const own={}, timers=[], events={}, pageEvents={};
+  const remoteMessages=[];
+  let contentMessageHandler=null;
   const storage={
     local:{
       async get(key){if(typeof key==='string')return {[key]:clone(own[key])};return {};},
@@ -59,7 +61,10 @@ function device(initial={},hash='#/net') {
     addEventListener(event,cb){pageEvents[event]=cb;},visibilityState:'visible'
   };
   const context={
-    console,chrome:{storage,runtime:{onMessage:{addListener(){}}}},
+    console,chrome:{storage,runtime:{
+      onMessage:{addListener(fn){contentMessageHandler=fn;}},
+      async sendMessage(message){remoteMessages.push(message);return {ok:true,enabled:false};}
+    }},
     localStorage,location:loc,window:win,document:doc,TextEncoder,
     crypto:{randomUUID(){return 'unit-device-'+(++deviceNo)}},
     addEventListener(event,cb){events[event]=cb;},
@@ -68,7 +73,8 @@ function device(initial={},hash='#/net') {
   vm.createContext(context);
   vm.runInContext(shared,context);
   vm.runInContext(script,context);
-  return {context,site,loc,win,events,timers,localStorage,storage,
+  return {context,site,loc,win,events,timers,localStorage,storage,remoteMessages,
+    message(msg){return new Promise(resolve=>contentMessageHandler(msg,null,resolve));},
     get(key){return JSON.parse(site[key]||'{}');},
     set(key,obj){site[key]=JSON.stringify(obj);}
   };
@@ -123,6 +129,14 @@ async function main(){
   a.timers[0]();
   await settle(300);
   assert.equal(S.cloudQuiz(cloud).net.s1.v,'right','re-enable imports local website answers');
+  // Clicking the popup sync button must make exactly one forced remote exchange,
+  // not a throttled auto request followed by a second forced request.
+  const before=a.remoteMessages.filter(m=>m.type==='REMOTE_EXCHANGE').length;
+  const manual=await a.message({type:'SYNC_NOW'});
+  const after=a.remoteMessages.filter(m=>m.type==='REMOTE_EXCHANGE').slice(before);
+  assert.equal(manual.ok,true);
+  assert.equal(after.length,1,'manual click triggers exactly one remote exchange');
+  assert.equal(after[0].manual,true,'manual click bypasses the automatic interval');
   console.log('PASS: two devices, course isolation, tombstones, reading, opt-out, cloud purge and re-enable');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});
