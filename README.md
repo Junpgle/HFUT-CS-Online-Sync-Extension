@@ -13,6 +13,16 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 - Edge 桌面端和 Android Edge 手机／平板均已实测安装成功。**移动端能安装不代表能跨设备同步**；当前移动端浏览器同步限制见下方。
 - 需要使用同一个商店扩展 ID 和同一 Microsoft 同步账号进行跨电脑同步。直接从 GitHub 源码「加载已解压的扩展」可能产生与商店版不同的扩展 ID，二者的 `chrome.storage.sync` 数据不会自动互通。
 
+## v2.3.0：每日学习统计与跨设备趋势（源码已实现，待部署与实机验证）
+
+- **今日学习时长**：只在 HFUT-CS-Online 标签页可见、拥有焦点且最近 60 秒有交互时，按约 15 秒的节拍累计。多个标签页共用一个计时节流，不因同时打开而简单叠加。它是活跃学习时长的近似值，不是操作系统屏幕使用时间。
+- **今日刷题数**：记录当天观察到的题目作答变化，按“课程 + 题目 ID”去重；反复修改同一题仍计 1 题，不会把首次安装导入的既有题目计算为今天的题。
+- **近 7 天趋势图**：在扩展首页显示每日学习分钟数柱状图。历史数据从安装或升级后开始积累，不能根据历史的最终答题结果或阅读位置反推过去的学习时长。
+- **跨端合并**：每日学习秒数以设备分别累计，并以每台设备的最大累计值合并；每日做题题目集合取并集，同一天相同题目即使跨设备作答也只计一次。通过原有可选 Question-Bank 账号独立云通道传输，未登录时只保留本机数据；桌面浏览器原有的题目与阅读位置同步机制继续保持不变。
+- **数据范围**：统计数据按最近约 90 天滚动保留；云端单账号仍受快照容量上限约束，学习统计只提供近七日图表。跨时区使用各设备本地日期记账，临近午夜时可能产生日期归属差异。
+
+**发布前注意**：必须先把 [HFUT-QuestionBank](https://github.com/Junpgle/HFUT-QuestionBank) 的更新 Worker 构建部署到 Cloudflare，再验证两设备可正常交换 `metrics` 字段；仓库 CI 只编译后端，不自动部署到生产环境。扩展也需要重新构建并发布商店新版。目前未声称完成生产部署或电脑/Android 之间的实机验证。
+
 ## v2.2.2：可选 Question-Bank 账号云同步（待商店版实机验证）
 
 针对 Android Edge 的 `Extension settings = Not Running` 问题，**v2.2.2 在原有浏览器 `storage.sync` 之外增加了一条独立的跨设备通道**。此版本的源码和构建产物已经更新，需在 Edge Partner Center 提交升级包；以下描述为功能实现说明，**不代表 v2.2.2 已通过真实手机、平板的同步测试**。
@@ -36,7 +46,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 
 ### 使用方式
 
-1. 正式版升级至 v2.2.2 后，打开扩展弹窗的「Question-Bank 账号云同步」。
+1. 安装支持云同步的版本后，打开扩展弹窗「Question-Bank 云同步」，点击「去登录」。
 2. 输入已有的 Question-Bank 用户名、密码并登录；如尚无账号，请先在 Question-Bank 网站注册和完成邮箱验证。
 3. 在其他设备的同一商店扩展里使用相同 Question-Bank 账号登录，并打开 [HFUT-CS-Online](https://saltgardenia.github.io/HFUT-CS-Online/)。
 4. 浏览器同步功能不必在 Android 上运行，但独立 API 必须能够从该设备正常访问；登录成功后按需点击「立即同步」，刷新已打开的做题页面读取最新记录。
@@ -85,6 +95,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 - **跨设备同步**：通过 `chrome.storage.sync` 在登录了同一个浏览器账号、开启扩展同步的桌面浏览器之间传递记录。记录使用时间戳和删除墓碑进行逐题合并；同步有延迟，不能替代备份。
 - **全站阅读进度**：记录阅读页面的路径、最近章节标题、百分比、滚动距离，弹窗可点击返回。第一次安装前网站未保存的阅读位置不能追溯。
 - **全站概览**：查看各课程有记录的题数、答对题数、最近阅读页面。
+- **学习统计**：展示今日活跃学习时长、当天去重刷题数及近 7 天学习时间趋势，已登录 Question-Bank 后可跨设备合并。
 - **备份**：导出/导入 JSON，用于 Chrome / Edge 之间迁移、留存个人备份。
 - **同步空间用量**：调用浏览器的 `chrome.storage.sync.getBytesInUse(null)` 显示实际已用、剩余字节与 100 KiB（102400 字节）总量；各门课程单独统计云端占用，并按大小排序。
 - **课程同步管理**：点击「清除并停用」后，先同步停用标记，再删除该课程所有云端答题/阅读键。其他已更新设备会停止上传该课程；网站自己的 `localStorage` 不会删除。点击「恢复同步」并打开或刷新课程网页，即可从本地记录重新建立同步。
@@ -151,6 +162,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 node --check shared.js
 node --check content.js
 node --check popup.js
+node --check background.js
 node tests/test-shared.cjs
 node tests/test-content.cjs
 node tests/test-popup.cjs
@@ -175,7 +187,7 @@ node tests/test-background.cjs
 
 ```bash
 python scripts/package_edge.py
-python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.2.2.zip
+python scripts/verify_edge_package.py dist/HFUT-CS-Online-Sync-Extension-Edge-v2.3.0.zip
 ```
 
 **语言本地化：** 自 v2.1.2 起，`manifest.json` 将 `default_locale` 设置为 `zh_CN`，并通过 `__MSG_extensionName__`、`__MSG_extensionDescription__` 等引用分别读取 `_locales/zh_CN/messages.json` 和 `_locales/en/messages.json`。这能让 Edge 商店识别 **简体中文 / English** 两种商品语言。扩展弹窗目前主要是中文界面，英文语言包覆盖扩展名称、简短说明和工具栏提示，并非全套界面翻译。
