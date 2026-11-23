@@ -146,7 +146,7 @@
     pending = !initial && touchedActive;
     return { wrote, changedActive: initial && touchedActive };
   }
-  function collectChanges(snapshot) {
+  function collectChanges(snapshot, countToday=true) {
     const newlyAnswered=[];
     for (const [course, answers] of Object.entries(snapshot)) {
       if (state.disabled[course]) continue;
@@ -160,7 +160,7 @@
         state.lastSite[course] = answers;
       }
     }
-    if(newlyAnswered.length)reportActivity(false,newlyAnswered);
+    if(countToday&&newlyAnswered.length)reportActivity(false,newlyAnswered);
   }
   async function observe(skipRemote=false) {
     if (!state) return;
@@ -298,7 +298,7 @@
     };
     state.records = S.mergeAll({},stored?.records||{});
     if (hasBaseline) {
-      collectChanges(snapshot); // changes made while the extension was not running
+      collectChanges(snapshot,false); // historical changes have unknown dates
     } else {
       // Preserve pre-existing site answers as the oldest possible events.
       for (const [course, answers] of Object.entries(snapshot)) {
