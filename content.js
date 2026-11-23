@@ -142,7 +142,7 @@
       }
     }
   }
-  async function observe() {
+  async function observe(skipRemote=false) {
     if (!state) return;
     const cloud = await chrome.storage.sync.get(null);
     absorb(cloud); // controls first, before reading this device's site records
@@ -151,7 +151,7 @@
     // Independent cloud sync must still run when the browser sync quota is full.
     let browserError;
     try{await publish();}catch(err){browserError=err;}
-    await remoteSync(); // throttled; backend is not polled every 3 seconds
+    if(!skipRemote)await remoteSync(); // remote automatic API requests are rate-limited
     if(browserError)throw browserError;
   }
   function remoteControlsForRequest(cloud) {
@@ -168,16 +168,18 @@
   }
   async function remoteSync(force=false){
     const now=Date.now();
-    if(!force&&now-lastRemoteAttempt<180000)return;
+    if(!force && document.visibilityState==='hidden')return; // no background-tab polling
+    if(!force&&now-lastRemoteAttempt<5*60*1000)return;
     lastRemoteAttempt=now;
     try {
       const cloud=await chrome.storage.sync.get(null);
       const result=await chrome.runtime.sendMessage({
-        type:'REMOTE_EXCHANGE', records:state.records,reading:state.reading,
+        type:'REMOTE_EXCHANGE',manual:force,records:state.records,reading:state.reading,
         controls:remoteControlsForRequest(cloud)
       });
       if(!result?.enabled)return; // Account cloud sync is opt-in.
       if(!result.ok)throw new Error(result.error||'远程服务错误');
+      if(result.skipped)return; // another tab already contacted the API recently
       state.remoteControls=result.controls||{};
       state.records=S.mergeAll(state.records,result.records||{});
       state.reading=S.mergeReading(state.reading,result.reading||{});
@@ -193,7 +195,8 @@
     }
   }
   async function freshSync() {
-    await observe();
+    // Do not auto-exchange then immediately force another request on the same click.
+    await observe(true);
     await remoteSync(true);
     return { pending, error:lastError, remoteError };
   }
@@ -225,7 +228,7 @@
     lastReadingAt = now;
     let browserError;
     try{await publish();}catch(err){browserError=err;}
-    await remoteSync(); // opportunistic upload, at most once per 3 minutes
+    await remoteSync(); // opportunistic upload, max one auto request per 5 minutes
     if(browserError)throw browserError;
   }
   function scheduleReading() {
