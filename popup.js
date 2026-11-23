@@ -268,8 +268,10 @@
     if(result.error)remoteMessage('独立云同步提醒：'+result.error,true);
   }
   function remoteMessage(message,error=false){
-    text($('remote-message'),message);
-    $('remote-message').classList.toggle('error',error);
+    const el=$('remote-message');
+    text(el,message);
+    el.hidden=!message;
+    el.classList.toggle('error',error);
   }
   $('remote-login-form').addEventListener('submit',async e=>{
     e?.preventDefault?.();
