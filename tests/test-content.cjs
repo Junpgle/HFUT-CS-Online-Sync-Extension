@@ -58,7 +58,8 @@ function device(initial={},hash='#/net') {
   const doc={
     title:'Test Course',body:{scrollHeight:5000},documentElement:{scrollHeight:5000},
     querySelector(){return null;},querySelectorAll(){return []},
-    addEventListener(event,cb){pageEvents[event]=cb;},visibilityState:'visible'
+    addEventListener(event,cb){pageEvents[event]=cb;},visibilityState:'visible',
+    hasFocus(){return true;}
   };
   const context={
     console,chrome:{storage,runtime:{
@@ -85,6 +86,7 @@ async function main(){
   const a=device({[netKey]:{s1:'right'}});
   await settle();
   assert.equal(cloudListeners.length,1);
+  assert.equal(a.timers.length,2,'study activity and sync observation use separate intervals');
   const b=device({[osKey]:{s1:'wrong'}},'#/os');
   await settle();
   assert.equal(a.get(netKey).s1,'right');
@@ -93,11 +95,11 @@ async function main(){
   assert.equal(b.get(osKey).s1,'wrong');
   assert.equal(Object.keys(cloud).filter(k=>k.startsWith('hfutsite_v2_q_')).length,2);
   a.set(netKey,{...a.get(netKey),s2:'revealed'});
-  a.timers[0]();
+  a.timers[1]();
   await settle();
   assert.equal(b.get(netKey).s2,'revealed');
   b.set(osKey,{});
-  b.timers[0]();
+  b.timers[1]();
   await settle();
   assert.deepEqual(a.get(osKey),{});
   assert.deepEqual(b.get(osKey),{});
