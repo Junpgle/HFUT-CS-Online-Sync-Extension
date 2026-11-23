@@ -20,6 +20,7 @@ async function fetchMock(url,options){
   requests.push({url,options});
   if(url.endsWith('/login'))return {ok:true,json:async()=>({token:'test-jwt',user:{id:7,username:'student',email:'test@example.test'}})};
   if(url.endsWith('/site-sync/exchange')){
+    if(failExchange==='unauthorized')return {ok:false,status:401,json:async()=>({error:'身份过期，请重新登录'})};
     if(failExchange)return {ok:false,status:503,json:async()=>({error:'Cloudflare 服务不可用'})};
     return {ok:true,json:async()=>({records:{net:{q1:{v:'right',t:5,d:'desktop'}}},reading:{},controls:{}})};
   }
@@ -93,5 +94,11 @@ function call(msg){
   const loginAgain=await call({type:'REMOTE_LOGIN',username:'student',password:'again'});
   assert.equal(loginAgain.ok,true);
   assert.equal((await call({type:'REMOTE_EXCHANGE',records:{}})).skipped,undefined,'new account session can sync immediately');
+  failExchange='unauthorized';
+  const revoked=await call({type:'REMOTE_EXCHANGE',manual:true,records:{}});
+  assert.equal(revoked.expired,true);
+  assert.equal(revoked.enabled,false);
+  assert.equal((await call({type:'REMOTE_STATUS'})).enabled,false,'password reset must force a fresh login');
+  assert.equal(values.hfutsite_remote_session,undefined);
   console.log('PASS: 5-minute rate limit across tabs/restarts, manual bypass, error backoff, login and logout');
 })().catch(e=>{console.error(e);process.exitCode=1;});
