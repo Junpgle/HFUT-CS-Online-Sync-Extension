@@ -5,6 +5,8 @@ const API = 'https://worker.junpgle.me/api';
 const KEY = 'hfutsite_remote_session';
 const LAST = 'hfutsite_remote_last';
 const ERROR = 'hfutsite_remote_error';
+const LAST_ATTEMPT = 'hfutsite_remote_last_attempt';
+const AUTO_INTERVAL_MS = 5 * 60 * 1000; // One automatic API request per profile, not per tab.
 let exchangeQueue = Promise.resolve();
 async function currentSession() {
   return (await chrome.storage.local.get(KEY))[KEY] || null;
@@ -33,9 +35,10 @@ async function recordError(e) {
 async function handler(msg){
   if(msg?.type==='REMOTE_STATUS'){
     const session=await currentSession();
-    const state=await chrome.storage.local.get([LAST,ERROR]);
+    const state=await chrome.storage.local.get([LAST,ERROR,LAST_ATTEMPT]);
     return {ok:true,enabled:!!session,username:session?.user?.username||'',
-      last:state[LAST]||0,error:state[ERROR]||''};
+      last:state[LAST]||0,error:state[ERROR]||'',
+      nextAutoAt:(state[LAST_ATTEMPT]||0)+AUTO_INTERVAL_MS,autoIntervalMs:AUTO_INTERVAL_MS};
   }
   if(msg?.type==='REMOTE_LOGIN'){
     const username=typeof msg.username==='string'?msg.username.trim():'';
@@ -45,11 +48,13 @@ async function handler(msg){
       const result=await apiCall('/login','POST',{username,password});
       if(!result.token||!result.user?.id)throw new Error('服务器未提供有效会话');
       await chrome.storage.local.set({[KEY]:{token:result.token,user:{id:result.user.id,username:result.user.username}},[ERROR]:''});
+      // A new login must not inherit the previous account's sync schedule.
+      await chrome.storage.local.remove([LAST,LAST_ATTEMPT]);
       return {ok:true,username:result.user.username};
     }catch(e){return recordError(e);}
   }
   if(msg?.type==='REMOTE_LOGOUT'){
-    await chrome.storage.local.remove([KEY,LAST,ERROR]);
+    await chrome.storage.local.remove([KEY,LAST,ERROR,LAST_ATTEMPT]);
     return {ok:true};
   }
   if(msg?.type==='REMOTE_EXCHANGE'){
@@ -59,6 +64,17 @@ async function handler(msg){
     // different unsent progress; dropping a request would lose its changes.
     const operation=exchangeQueue.then(async()=>{
       try{
+        const now=Date.now();
+        if(msg.manual!==true){
+          // Service worker owns the throttle. Multiple tabs and MV3 worker
+          // restarts share this timestamp through extension-local storage.
+          const stamp=(await chrome.storage.local.get(LAST_ATTEMPT))[LAST_ATTEMPT]||0;
+          if(now-stamp>=0 && now-stamp<AUTO_INTERVAL_MS)
+            return {ok:true,enabled:true,skipped:true,nextAutoAt:stamp+AUTO_INTERVAL_MS};
+        }
+        // Record attempts, including network failures, to avoid retry storms.
+        // User-initiated sync bypasses the interval but resets its clock.
+        await chrome.storage.local.set({[LAST_ATTEMPT]:now});
         const result=await apiCall('/site-sync/exchange','POST',{
           records:msg.records||{},reading:msg.reading||{},controls:msg.controls||{}
         },session.token);
@@ -86,7 +102,7 @@ async function handler(msg){
     if(!session)return {ok:false,error:'尚未登录'};
     try{
       await apiCall('/site-sync','DELETE',undefined,session.token);
-      await chrome.storage.local.set({[ERROR]:'',[LAST]:0});
+      await chrome.storage.local.set({[ERROR]:'',[LAST]:0,[LAST_ATTEMPT]:Date.now()});
       return {ok:true};
     }catch(e){return recordError(e);}
   }
