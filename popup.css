@@ -87,3 +87,9 @@ h2 { margin:0; font-size:13px; } .panel-title span { color:var(--muted); font-si
 .remote-account-links a:hover,.remote-account-links a:focus-visible {text-decoration:underline;}
 
 .remote-panel #remote-message[hidden] { display:none; }
+
+/* Collapsed optional cloud-sync entry */
+.remote-invite { display:flex;align-items:center;justify-content:space-between;gap:10px; }
+.remote-invite span { font-size:12px;font-weight:600; }
+.remote-invite small { display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:2px; }
+.remote-invite button { flex:none;border:1px solid #d7e6e9;padding:7px 12px;border-radius:8px;font-weight:600; }
