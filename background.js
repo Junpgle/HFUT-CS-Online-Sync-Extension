@@ -8,6 +8,59 @@ const ERROR = 'hfutsite_remote_error';
 const LAST_ATTEMPT = 'hfutsite_remote_last_attempt';
 const AUTO_INTERVAL_MS = 5 * 60 * 1000; // One automatic API request per profile, not per tab.
 let exchangeQueue = Promise.resolve();
+
+const METRICS = 'hfutsite_study_metrics_v1';
+const TICK = 'hfutsite_study_last_tick_v1';
+let metricQueue=Promise.resolve();
+function metricDay(s) {return typeof s==='string' && /^20\\d{2}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$/.test(s);}
+function metricKey(s) {return typeof s==='string' && /^[a-z][a-z0-9-]{1,17}:[A-Za-z0-9:_-]{1,130}$/.test(s);}
+function mergeMetrics(a,b) {
+  const out={};
+  const min=new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  const max=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  for(const day of new Set([...Object.keys(a||{}),...Object.keys(b||{})])) {
+    if(!metricDay(day)||day<min||day>max)continue;
+    const x=a?.[day]||{},y=b?.[day]||{},seconds={};
+    for(const [d,v] of Object.entries({...x.seconds,...y.seconds}))
+      if(d.length>0&&d.length<=90&&Number.isSafeInteger(v)&&v>=0&&v<=86400)seconds[d]=v;
+    for(const [d,v] of Object.entries(x.seconds||{}))
+      if(Object.hasOwn(seconds,d)&&Number.isSafeInteger(v))seconds[d]=Math.max(v,seconds[d]);
+    const questions=[...new Set([...(Array.isArray(x.questions)?x.questions:[]),
+      ...(Array.isArray(y.questions)?y.questions:[])].filter(metricKey))].sort().slice(0,3000);
+    out[day]={seconds,questions};
+  }
+  return out;
+}
+function metricTransaction(job){
+  const task=metricQueue.then(job);
+  metricQueue=task.then(()=>{},()=>{});
+  return task;
+}
+async function studyActivity(msg){
+  return metricTransaction(async()=>{
+    const now=Date.now(),day=msg.day,device=msg.device;
+    const min=new Date(now-86400000).toISOString().slice(0,10);
+    const max=new Date(now+86400000).toISOString().slice(0,10);
+    if(!metricDay(day)||day<min||day>max || typeof device!=='string' ||
+       !/^[A-Za-z0-9_-]{6,90}$/.test(device))return {ok:false,error:'无效的学习统计数据'};
+    const values=await chrome.storage.local.get([METRICS,TICK]);
+    const metrics=mergeMetrics(values[METRICS]||{},{});
+    const row=metrics[day]||{seconds:{},questions:[]};
+    const previous=values[TICK]||0;
+    // A single shared timestamp across visible tabs prevents double-counting.
+    if(msg.active===true&&now-previous>=10000) {
+      row.seconds[device]=Math.min(86400,(row.seconds[device]||0)+15);
+      await chrome.storage.local.set({[TICK]:now});
+    }
+    if(Array.isArray(msg.questions)){
+      row.questions=[...new Set([...row.questions,...msg.questions.slice(0,100).filter(metricKey)])].sort().slice(0,3000);
+    }
+    metrics[day]=row;
+    await chrome.storage.local.set({[METRICS]:metrics});
+    return {ok:true};
+  });
+}
+
 async function currentSession() {
   return (await chrome.storage.local.get(KEY))[KEY] || null;
 }
@@ -38,6 +91,12 @@ async function recordError(e) {
   return {ok:false,enabled:!expired,error:message,expired};
 }
 async function handler(msg){
+  if(msg?.type==='STUDY_ACTIVITY')return studyActivity(msg);
+  if(msg?.type==='STUDY_STATS'){
+    await metricQueue;
+    const data=(await chrome.storage.local.get(METRICS))[METRICS]||{};
+    return {ok:true,metrics:mergeMetrics(data,{})};
+  }
   if(msg?.type==='REMOTE_STATUS'){
     const session=await currentSession();
     const state=await chrome.storage.local.get([LAST,ERROR,LAST_ATTEMPT]);
@@ -80,9 +139,16 @@ async function handler(msg){
         // Record attempts, including network failures, to avoid retry storms.
         // User-initiated sync bypasses the interval but resets its clock.
         await chrome.storage.local.set({[LAST_ATTEMPT]:now});
+        await metricQueue;
+        const local=(await chrome.storage.local.get(METRICS))[METRICS]||{};
         const result=await apiCall('/site-sync/exchange','POST',{
-          records:msg.records||{},reading:msg.reading||{},controls:msg.controls||{}
+          records:msg.records||{},reading:msg.reading||{},controls:msg.controls||{},
+          metrics:mergeMetrics(local,{})
         },session.token);
+        await metricTransaction(async()=>{
+          const old=(await chrome.storage.local.get(METRICS))[METRICS]||{};
+          await chrome.storage.local.set({[METRICS]:mergeMetrics(old,result.metrics||{})});
+        });
         await chrome.storage.local.set({[LAST]:Date.now(),[ERROR]:''});
         return {ok:true,enabled:true,records:result.records||{},reading:result.reading||{},
           controls:result.controls||{},version:result.version};
@@ -114,7 +180,8 @@ async function handler(msg){
   return {ok:false,error:'未知操作'};
 }
 chrome.runtime.onMessage.addListener((message,_sender,sendResponse)=>{
-  if(typeof message?.type!=='string'||!message.type.startsWith('REMOTE_'))return false;
+  if(typeof message?.type!=='string'||
+     !(message.type.startsWith('REMOTE_')||message.type==='STUDY_ACTIVITY'||message.type==='STUDY_STATS'))return false;
   handler(message).then(sendResponse).catch(e=>sendResponse({ok:false,error:String(e?.message||e)}));
   return true;
 });
