@@ -28,9 +28,14 @@ async function apiCall(route, method='POST', data, token) {
   } finally { clearTimeout(timeout); }
 }
 async function recordError(e) {
-  const message = String(e?.name==='AbortError'?'连接超时，请检查网络':e?.message||e).slice(0,240);
+  const expired=e?.status===401;
+  const message=expired?'账号凭据已失效（例如修改密码后），请重新登录 Question-Bank。':
+    String(e?.name==='AbortError'?'连接超时，请检查网络':e?.message||e).slice(0,240);
+  // Password recovery increments the account token version, invalidating all
+  // older JWTs. Remove invalid credentials rather than polling indefinitely.
+  if(expired)await chrome.storage.local.remove([KEY,LAST_ATTEMPT]);
   await chrome.storage.local.set({[ERROR]:message});
-  return {ok:false,enabled:true,error:message,expired:e?.status===401};
+  return {ok:false,enabled:!expired,error:message,expired};
 }
 async function handler(msg){
   if(msg?.type==='REMOTE_STATUS'){
