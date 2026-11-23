@@ -10,12 +10,12 @@
   <main class="shell">
     <header class="header">
       <div class="logo" aria-hidden="true">↺</div>
-      <div class="brand"><h1>HFUT 全站学习同步</h1><p>全部课程 · 阅读位置 · 逐题记录</p></div>
+      <div class="brand"><h1>HFUT 全站学习同步</h1></div>
       <span class="dot" title="仅访问指定网站时读取学习数据"></span>
     </header>
     <section class="status" aria-live="polite">
       <div class="statusrow"><span class="status-k">浏览器存储最近写入</span><span id="sync-time" class="status-v">—</span></div>
-      <p id="status-msg" class="hint" role="status">浏览器同步用于桌面设备；Android 可登录 Question-Bank 账号开启独立云同步。</p>
+      <p id="status-msg" class="hint" role="status"></p>
     </section>
     <section class="panel quota-panel" aria-label="浏览器同步存储空间">
       <div class="panel-title"><h2>浏览器同步存储空间</h2><span id="quota-percent">0%</span></div>
@@ -31,25 +31,23 @@
       <div class="stat"><span class="stat-label">阅读页面</span><strong id="reading-count">0</strong></div>
     </div>
     <section class="panel">
-      <div class="panel-title"><h2>继续阅读</h2><span>最近学习的页面</span></div>
+      <div class="panel-title"><h2>继续阅读</h2></div>
       <div class="readings" id="readings"><p class="empty">滚动阅读任意课程后，此处将显示记录。</p></div>
     </section>
     <section class="panel">
-      <div class="panel-title"><h2>各课程做题进度</h2><span>按实际记录统计</span></div>
+      <div class="panel-title"><h2>各课程做题进度</h2></div>
       <div class="papers" id="courses"><p class="empty">暂无做题记录。</p></div>
     </section>
     <section class="panel">
-      <div class="panel-title"><h2>课程同步管理</h2><span>按云端占用排序</span></div>
-      <p class="manage-tip">清除会删除该课程在浏览器云端的做题与阅读记录，并停止后续上传；<strong>网站本地记录不受影响</strong>，可以随时重新启用同步。</p>
+      <div class="panel-title"><h2>课程同步管理</h2></div>
       <div id="course-manage" class="manage-list"><p class="empty">读取课程存储情况中…</p></div>
     </section>
     <section class="panel remote-panel" aria-label="Question-Bank 账号独立云同步">
-      <div class="panel-title"><h2>Question-Bank 账号云同步</h2><span>可选 · 手机 / 电脑互通</span></div>
-      <p class="manage-tip">复用 <strong>HFUT Question-Bank</strong> 的用户名和密码，学习记录将通过 <code>worker.junpgle.me</code> 保存到开发者的 Cloudflare D1。只有主动登录后才上传，浏览器原有同步照常工作。</p>
+      <div class="panel-title"><h2>Question-Bank 云同步</h2></div>
       <form id="remote-login-form" class="remote-form">
         <input id="remote-username" type="text" autocomplete="username" placeholder="Question-Bank 用户名" maxlength="32" required>
-        <input id="remote-password" type="password" autocomplete="current-password" placeholder="密码（仅用于本次登录）" required>
-        <button type="submit" id="remote-login" class="primary">登录并启用跨设备云同步</button>
+        <input id="remote-password" type="password" autocomplete="current-password" placeholder="密码" required>
+        <button type="submit" id="remote-login" class="primary">登录并同步</button>
       </form>
       <div id="remote-session" hidden>
         <p id="remote-user" class="remote-user"></p>
@@ -60,10 +58,9 @@
           <button id="remote-delete" type="button" class="danger">删除独立云记录</button>
         </div>
       </div>
-      <p class="hint">自动同步：打开学习网站且标签页可见时，<strong>每 5 分钟最多请求一次</strong>；点击「立即同步」可随时手动双向同步，不受时间间隔限制。</p>
       <div class="remote-account-links">
-        <a href="https://qbank.junpgle.me/#/register" target="_blank" rel="noopener noreferrer">没有账号？注册 Question-Bank ↗</a>
-        <a href="https://qbank.junpgle.me/#/reset-password" target="_blank" rel="noopener noreferrer">修改 / 忘记密码（邮箱验证码）↗</a>
+        <a href="https://qbank.junpgle.me/#/register" target="_blank" rel="noopener noreferrer">注册账号</a>
+        <a href="https://qbank.junpgle.me/#/reset-password" target="_blank" rel="noopener noreferrer">忘记密码</a>
       </div>
       <p id="remote-message" class="hint" role="status">未登录：不会将学习记录上传到开发者服务器。</p>
     </section>
@@ -77,7 +74,7 @@
       <button type="button" id="visit">打开网站 ↗</button>
       <input id="import-file" type="file" accept=".json,application/json" hidden>
     </div>
-    <p class="footer">Chrome 与 Edge 原生账号同步空间独立；Question-Bank 账号云同步可跨设备使用。<br>答题页面正在打开时，建议刷新页面以载入其他设备的新记录。<br><a href="https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">隐私政策</a> · <a href="https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension/issues" target="_blank" rel="noopener noreferrer">问题反馈</a></p>
+    <p class="footer"><a href="https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">隐私政策</a> · <a href="https://github.com/Junpgle/HFUT-CS-Online-Sync-Extension/issues" target="_blank" rel="noopener noreferrer">问题反馈</a></p>
   </main>
   <script src="shared.js"></script>
   <script src="popup.js"></script>
