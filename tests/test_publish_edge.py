@@ -38,6 +38,23 @@ class PublishTests(unittest.TestCase):
         with self.assertRaises(p.PublishError):
             client.wait("/operations/example", attempts=1, delay=0)
 
+    def test_live_http_202_status(self):
+        client = p.EdgeClient("12345678-1234-1234-1234-123456789abc", "client", "key")
+        client.request = Mock(side_effect=[
+            (202, {}, b""),
+            (202, {}, b'{"status":"InProgress"}'),
+            (200, {}, b'{"status":"InProgress"}'),
+            (202, {}, b'{"status":"Succeeded"}'),
+        ])
+        client.wait("/draft/package/operations/example", delay=0)
+        self.assertEqual(client.request.call_count, 4)
+        client.request = Mock(return_value=(202, {}, b'{"status":"Failed","errorCode":"SubmissionValidationError"}'))
+        with self.assertRaises(p.PublishError):
+            client.wait("/operations/example", delay=0)
+        client.request = Mock(return_value=(202, {}, b'{"status":"Unexpected"}'))
+        with self.assertRaises(p.PublishError):
+            client.wait("/operations/example", delay=0)
+
     def test_upload_failure_blocks_submission(self):
         client = Mock()
         client.start.return_value = "upload-id"

@@ -1,4 +1,6 @@
 {
   "version": "2.4.0",
-  "submit": true
+  "submit": true,
+  "attempt": 2,
+  "reason": "retry after upload status HTTP 202; previous run stopped before certification submission"
 }

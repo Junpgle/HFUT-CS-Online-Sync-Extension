@@ -74,14 +74,23 @@ class EdgeClient:
 
     def wait(self, path, attempts=40, delay=10):
         for attempt in range(attempts):
-            status, _, raw = self.request(path)
-            if status != 200:
+            status, headers, raw = self.request(path)
+            # The REST reference says 200, but Microsoft's sample and live
+            # v1.1 service also return 202 for operation status requests.
+            if status not in (200, 202):
                 raise PublishError(f"Unexpected operation HTTP status {status}")
-            try:
-                result = json.loads(raw)
-                state = result["status"]
-            except (ValueError, KeyError, TypeError):
-                raise PublishError("Invalid Microsoft operation response") from None
+            if status == 202 and not raw.strip():
+                result = {"status": "InProgress"}
+            else:
+                try:
+                    result = json.loads(raw)
+                    state = result["status"]
+                except (ValueError, KeyError, TypeError):
+                    raise PublishError("Invalid Microsoft operation response") from None
+            state = result["status"]
+            print(f"Operation status: HTTP {status}, "
+                  + (state if state in ("InProgress", "Succeeded", "Failed") else "Unknown"),
+                  flush=True)
             if state == "Succeeded":
                 return
             if state != "InProgress":
@@ -90,7 +99,9 @@ class EdgeClient:
                     code = "unknown"
                 raise PublishError(f"Operation did not succeed ({code}); inspect Partner Center")
             if attempt + 1 < attempts:
-                time.sleep(delay)
+                retry = headers.get("Retry-After", "")
+                pause = min(60, max(delay, int(retry))) if isinstance(retry, str) and retry.isdecimal() else delay
+                time.sleep(pause)
         raise PublishError("Microsoft operation did not finish in time; check Partner Center before retrying")
 
 
