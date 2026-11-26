@@ -53,4 +53,16 @@ assert.deepEqual(plain(S.courseCloudKeys({
   [S.quizKey('net',0)]:{entries:{}},[S.readKey('net')]:{entries:{}},
   [S.quizKey('os',0)]:{entries:{}},[control]:{disabled:true}
 },'net')),[S.quizKey('net',0),S.readKey('net')]);
+const native=S.fromNativeReading({'/net/deck/ch2':{c:'net',y:321,p:.2345,s:'数据通信',t:123}},'pc');
+assert.equal(native['#/net/deck/ch2'].percent,23.45);
+assert.equal(native['#/net/deck/ch2'].updated,123);
+const restored=S.toNativeReading({},native);
+assert.equal(restored['/net/deck/ch2'].p,.2345);
+assert.equal(restored['/net/deck/ch2'].s,'数据通信');
+assert.deepEqual(plain(S.toNativeReading(restored,native)),plain(restored));
+assert.deepEqual(plain(S.toNativeReading({},native,{net:true})),{});
+assert.equal(S.toNativeReading({'/net/deck/ch2':{t:124,y:900}},native)['/net/deck/ch2'].y,900);
+assert.deepEqual(plain(S.nativeProgress({a:{t:40,r:'right'},b:{t:50,r:null},c:{t:60,r:'wrong'}},{a:'right',c:'right'},'pc')),
+  {a:{v:'right',t:40,d:'pc'},b:{v:null,t:50,d:'pc'}});
+assert.equal(S.TITLES.ds,'数据结构');
 console.log('PASS: multi-course keys, conflict/deletion, reading, quota cleanup and disabled-course controls');

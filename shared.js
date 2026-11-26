@@ -15,7 +15,8 @@
     algo:'算法设计与分析', os:'操作系统', net:'计算机网络', math:'高等数学',
     ca:'计算机体系结构', db:'数据库系统', se:'软件工程', st:'软件测试',
     phys:'大学物理', pat:'程序设计艺术与方法', ai:'人工智能原理',
-    pd:'程序设计基础', sa:'软件体系结构', hd:'系统硬件综合设计'
+    pd:'程序设计基础', sa:'软件体系结构', hd:'系统硬件综合设计',
+    ...{"algo":"算法设计与分析","os":"操作系统","net":"计算机网络","pat":"程序设计艺术与方法","ai":"人工智能原理","sa":"软件体系结构","phys":"大学物理","ca":"计算机体系结构","math":"高等数学","pd":"程序设计基础","ncd":"计算机网络课程设计","nap":"网络攻防实践","hd":"系统硬件综合设计","mc":"移动计算与应用开发","nlu":"自然语言理解","oscd":"操作系统课程设计","cpd":"编译原理课程设计","ntr":"网络工程师综合实训","cv":"计算机视觉与深度学习","spm":"软件项目管理","bd":"大数据处理技术","cap":"计算机应用项目实训","aie":"人工智能经济学","sec":"信息安全技术","db":"数据库系统","se":"软件工程","st":"软件测试","dp":"分布式程序设计","swt":"软件工程师综合训练","dsd":"领域方向综合设计","ip":"创新实践","py":"Python程序设计","dm":"离散数学","cm":"计算方法","prob":"概率论与数理统计","asm":"汇编语言程序设计","eda":"EDA实训","res":"科研训练","physlab":"大学物理实验","java":"Java技术","dl":"数字逻辑","robot":"机器人技术","ds":"数据结构","dscd":"数据结构课程设计","la":"线性代数","ee":"电路与电子技术基础","comp":"编译原理","co":"计算机组成原理","emb":"嵌入式系统原理","ml":"机器学习","ste":"软件工具与环境","comb":"组合数学","cg":"计算机图形学","sma":"软件建模与分析","dmt":"数字媒体技术","np":"网络程序设计","micro":"微机原理与接口技术","het":"硬件工程师综合训练"}
   };
   const object = x => x != null && typeof x === 'object' && !Array.isArray(x);
   const courseValid = x => typeof x === 'string' && /^[a-z][a-z0-9-]{1,17}$/.test(x);
@@ -128,10 +129,60 @@
     const route=(hash||'').split('?')[0];
     return courseOfRoute(route) ? route : null;
   }
+  const NATIVE_READING_KEY = 'hb-reading-v1';
+  const progressMetaKey = key => 'hb-progress-meta:' + key;
+  function parseRecord(raw) {
+    try { const value = typeof raw === 'string' ? JSON.parse(raw) : raw; return object(value) ? value : {}; }
+    catch { return {}; }
+  }
+  function nativeRoute(route) {
+    return typeof route === 'string' && /^#\/[a-z][a-z0-9-]*\/(?:deck|chapter)\/[^/]+$/.test(route)
+      && courseOfRoute(route) ? route.slice(1) : null;
+  }
+  function fromNativeReading(raw, device, previous={}) {
+    const out={};
+    for (const [page,e] of Object.entries(parseRecord(raw))) {
+      const route='#'+page, c=courseOfRoute(route);
+      if (!nativeRoute(route)||!object(e)||e.c!==c||!Number.isSafeInteger(e.t)||e.t<0||e.t>9e15||
+          !Number.isFinite(e.y)||e.y<0||!Number.isFinite(e.p)||e.p<0||e.p>1) continue;
+      const old=previous[route];
+      // Preserve the old wire record on an exact round trip (including device ID).
+      if(old&&old.updated===e.t&&old.y===e.y&&Math.abs(old.percent-e.p*100)<1e-8) {
+        out[route]=old; continue;
+      }
+      out[route]={percent:e.p*100,y:e.y,section:null,
+        title:typeof e.s==='string'&&e.s.trim()?e.s.slice(0,90):(old?.title||page),
+        updated:e.t,d:device};
+    }
+    return cleanReading(out);
+  }
+  function toNativeReading(raw, reading, disabled={}) {
+    const out={...parseRecord(raw)};
+    for(const [route,e] of Object.entries(cleanReading(reading))) {
+      const page=nativeRoute(route), c=courseOfRoute(route);
+      if(!page||disabled[c])continue;
+      const old=out[page];
+      if(object(old)&&Number.isFinite(old.t)&&old.t>=e.updated)continue;
+      out[page]={c,y:e.y,p:e.percent/100,t:e.updated};
+      // Native section text and the legacy DOM section ID are different fields.
+      // Preserve the original native text when available, do not treat an ID as text.
+      if(e.title && e.title!==page && !e.section)out[page].s=e.title.slice(0,60);
+    }
+    return out;
+  }
+  function nativeProgress(raw, answers, device) {
+    const out={};
+    for(const [id,m] of Object.entries(parseRecord(raw))) {
+      if(!questionValid(id)||!object(m)||!Number.isSafeInteger(m.t)||m.t<0||m.t>9e15)continue;
+      if(m.r===null ? !Object.hasOwn(answers,id) : VALID.has(m.r)&&answers[id]===m.r)
+        out[id]={v:m.r,t:m.t,d:device};
+    }
+    return out;
+  }
   function cleanReading(raw) {
     const out={};
     if(!object(raw))return out;
-    for(const [route,r] of Object.entries(raw).slice(0,MAX_READ*4)) {
+    for(const [route,r] of Object.entries(raw).sort((a,b)=>(Number(b[1]?.updated)||0)-(Number(a[1]?.updated)||0)).slice(0,500)) {
       if(!courseOfRoute(route)||!object(r)||!Number.isFinite(r.updated)||r.updated<0||r.updated>9e15)continue;
       out[route]={
         percent:Math.min(100,Math.max(0,Number(r.percent)||0)),
@@ -206,6 +257,7 @@
     courseOfKey,keyOfCourse,questionValid,sanitizeAnswers,sanitizeRecords,
     mergeRecords,mergeAll,changes,actualAnswers,stable,hash,quizKey,readKey,shardCourse,
     cloudQuiz,courseOfCloudQuizKey,courseOfRoute,routeFromHash,cleanReading,mergeReading,
-    cloudReading,groupedReading,disabledKey,courseOfDisableKey,disabledCourses,courseCloudKeys,resumeUrl
+    cloudReading,groupedReading,disabledKey,courseOfDisableKey,disabledCourses,courseCloudKeys,resumeUrl,
+    NATIVE_READING_KEY,progressMetaKey,parseRecord,nativeRoute,fromNativeReading,toNativeReading,nativeProgress
   });
 })(typeof globalThis!=='undefined'?globalThis:this);

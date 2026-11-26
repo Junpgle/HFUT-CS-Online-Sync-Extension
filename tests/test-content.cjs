@@ -133,6 +133,19 @@ async function main(){
   assert.equal(S.cloudQuiz(cloud).net.s1.v,'right','re-enable imports local website answers');
   // Clicking the popup sync button must make exactly one forced remote exchange,
   // not a throttled auto request followed by a second forced request.
+  // Native website reading import / restore, exact timestamp and newer-wins.
+  a.set('hb-reading-v1',{'/net/deck/ch2':{c:'net',y:1000,p:.2345,t:Date.now(),s:'原生小节'}});
+  a.timers[1]();
+  await settle(300);
+  assert.equal(b.get('hb-reading-v1')['/net/deck/ch2'].p,.2345);
+  assert.equal(b.get('hb-reading-v1')['/net/deck/ch2'].s,'原生小节');
+  const stamp=Date.now();
+  a.set(netKey,{...a.get(netKey),native1:'wrong'});
+  a.set('hb-progress-meta:'+netKey,{...a.get('hb-progress-meta:'+netKey),native1:{t:stamp,r:'wrong'}});
+  a.timers[1]();
+  await settle(300);
+  assert.equal(b.get(netKey).native1,'wrong');
+  assert.equal(b.get('hb-progress-meta:'+netKey).native1.t,stamp);
   const before=a.remoteMessages.filter(m=>m.type==='REMOTE_EXCHANGE').length;
   const manual=await a.message({type:'SYNC_NOW'});
   const after=a.remoteMessages.filter(m=>m.type==='REMOTE_EXCHANGE').slice(before);

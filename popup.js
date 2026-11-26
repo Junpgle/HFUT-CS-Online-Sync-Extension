@@ -16,6 +16,17 @@
       return t?.id && u.startsWith(S.SITE_URL) ? t : null;
     });
   }
+  async function requestSiteSync(tab) {
+    try {
+      const result=await chrome.tabs.sendMessage(tab.id,{type:'SYNC_NOW'});
+      if(!result?.ok)throw new Error(result?.error||'网页同步脚本尚未就绪，请刷新网页后重试。');
+      return result;
+    }catch(err) {
+      if(/receiving end does not exist|could not establish connection|extension context invalidated/i.test(String(err?.message||err)))
+        throw new Error('网页扩展脚本已失效或尚未加载，请刷新 HFUT-CS-Online 网页后重试。');
+      throw err;
+    }
+  }
   async function combined() {
     const [cloud,local]=await Promise.all([
       chrome.storage.sync.get(null),
@@ -231,7 +242,7 @@
     try {
       const tab=await activeSiteTab();
       if(!tab){status('请先打开 HFUT-CS-Online 网站，再执行立即同步。');return;}
-      const result=await chrome.tabs.sendMessage(tab.id,{type:'SYNC_NOW'});
+      const result=await requestSiteSync(tab);
       await render();
       if(result?.error)status('同步失败：'+result.error,true);
       else if(result?.pending)status('已接收数据。当前做题页可能仍显示旧结果，请刷新网页。');
@@ -342,8 +353,8 @@
       await cloudStatus();
       const tab=await activeSiteTab();
       if(tab) {
-        const synced=await chrome.tabs.sendMessage(tab.id,{type:'SYNC_NOW'});
-        if(synced?.remoteError)throw new Error(synced.remoteError);
+        const synced=await requestSiteSync(tab);
+        if(!synced.remoteSynced)throw new Error(synced.remoteError||'独立云未确认同步成功');
         remoteMessage('已完成独立云同步。其他设备登录同一账号后可读取记录。');
       }else remoteMessage('登录成功。打开 HFUT-CS-Online 网站后将自动同步。');
       await cloudStatus();
@@ -355,8 +366,8 @@
     try{
       const tab=await activeSiteTab();
       if(!tab)throw new Error('请先打开 HFUT-CS-Online 网站');
-      const result=await chrome.tabs.sendMessage(tab.id,{type:'SYNC_NOW'});
-      if(result?.remoteError)throw new Error(result.remoteError);
+      const result=await requestSiteSync(tab);
+      if(!result.remoteSynced)throw new Error(result.remoteError||'独立云未确认同步成功');
       remoteMessage('独立云双向同步完成；正在使用的做题页请刷新查看更新。');
       await render();await cloudStatus();
     }catch(err){remoteMessage('独立云同步失败：'+err.message,true);}

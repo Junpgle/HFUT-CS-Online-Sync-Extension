@@ -13,25 +13,41 @@
   let previousRoute = null;
   let lastRemoteAttempt = 0;
   let remoteError = '';
+  let remoteSynced = false, initialized = false, invalidated = false, browserCloud = {};
+  const intervals = [];
+  function stopIfInvalid(err) {
+    if(!/extension context invalidated/i.test(String(err?.message||err)))return false;
+    if(!invalidated)console.warn('[HFUT Site Sync] 扩展已更新或失效，请刷新网页后重新连接。');
+    invalidated=true;
+    clearTimeout(readingTimer);
+    for(const id of intervals)if(typeof clearInterval==='function')clearInterval(id);
+    return true;
+  }
+  async function getCloud(strict=false) {
+    try { browserCloud=await chrome.storage.sync.get(null); return browserCloud; }
+    catch(err) { if(stopIfInvalid(err)||strict)throw err; return browserCloud; }
+  }
   const SITE_NAME = 'HFUT-CS-Online';
   let lastInteraction=Date.now();
   const dayKey=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
   function reportActivity(active=false,questions=[]){
-    if(!state || (!active&&!questions.length))return;
+    if(invalidated||!state || (!active&&!questions.length))return;
     chrome.runtime.sendMessage({type:'STUDY_ACTIVITY',day:dayKey(),
-      device:state.deviceId,active,questions}).catch(()=>{});
+      device:state.deviceId,active,questions}).catch(stopIfInvalid);
   }
   for(const event of ['pointerdown','keydown','scroll','touchstart']){
     addEventListener(event,()=>{lastInteraction=Date.now();},{passive:true});
   }
   // Time accrues only while the learning tab is visible, focused and recently used.
-  setInterval(()=>{
-    if(state && document.visibilityState==='visible' && document.hasFocus() &&
+  intervals.push(setInterval(()=>{
+    if(!invalidated&&state && document.visibilityState==='visible' && document.hasFocus() &&
        Date.now()-lastInteraction<=60000)reportActivity(true);
-  },15000);
+  },15000));
 
   function serial(job) {
-    queue = queue.catch(() => {}).then(job).catch(async err => {
+    if(invalidated)return Promise.resolve();
+    queue = queue.catch(() => {}).then(()=>invalidated?undefined:job()).catch(async err => {
+      if(stopIfInvalid(err))return;
       lastError = String(err?.message || err);
       console.warn('[HFUT Site Sync]', lastError);
       try { await chrome.storage.local.set({ [S.LAST_ERROR]: lastError }); } catch {}
@@ -43,7 +59,9 @@
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i), course = S.courseOfKey(key);
+        const metaCourse = key?.startsWith('hb-progress-meta:') ? S.courseOfKey(key.slice('hb-progress-meta:'.length)) : null;
         if (course) out[course] = S.sanitizeAnswers(localStorage.getItem(key));
+        else if(metaCourse && !Object.hasOwn(out,metaCourse))out[metaCourse]=S.sanitizeAnswers(localStorage.getItem(S.keyOfCourse(metaCourse)));
       }
     } catch (err) { console.warn('[HFUT Site Sync] 读取网站记录失败', err); }
     return out;
@@ -52,7 +70,39 @@
     const m = /^#\/([a-z][a-z0-9-]{1,17})\/practice(?:\/|\?|$)/.exec(location.hash);
     return m?.[1] || (/^#\/practice(?:\/|\?|$)/.test(location.hash) ? 'algo' : null);
   }
-  function currentRoute() { return S.routeFromHash(location.hash); }
+  function currentRoute() {
+    if(/^#\/net\/deck\/[^?]+\?/.test(location.hash)&&new URLSearchParams(location.hash.split('?')[1]).get('view')==='extra')return null;
+    return S.routeFromHash(location.hash);
+  }
+  function siteReading() {
+    const records=S.fromNativeReading(localStorage.getItem(S.NATIVE_READING_KEY),state.deviceId,state.reading);
+    for(const route of Object.keys(records))if(state.disabled[S.courseOfRoute(route)])delete records[route];
+    state.reading=S.mergeReading(state.reading,records);
+  }
+  function notifySite(key,oldValue,newValue) {
+    if(typeof StorageEvent==='function'&&typeof window.dispatchEvent==='function')
+      window.dispatchEvent(new StorageEvent('storage',{key,oldValue,newValue,storageArea:localStorage}));
+  }
+  function applyNativeReading() {
+    const raw=localStorage.getItem(S.NATIVE_READING_KEY);
+    const next=S.toNativeReading(raw,state.reading,state.disabled);
+    if(S.stable(S.parseRecord(raw))===S.stable(next))return;
+    const value=JSON.stringify(next);
+    localStorage.setItem(S.NATIVE_READING_KEY,value);
+    notifySite(S.NATIVE_READING_KEY,raw,value);
+  }
+  function importNativeProgress(snapshot) {
+    for(const [course,answers] of Object.entries(snapshot)) {
+      if(state.disabled[course])continue;
+      const stamps=S.nativeProgress(localStorage.getItem(S.progressMetaKey(S.keyOfCourse(course))),answers,state.deviceId);
+      // Same value/time from another device must not acquire a new device ID on every poll.
+      for(const [id,stamp] of Object.entries(stamps)) {
+        const old=state.records[course]?.[id];
+        if(old&&old.t===stamp.t&&old.v===stamp.v)delete stamps[id];
+      }
+      state.records[course]=S.mergeRecords(state.records[course],stamps);
+    }
+  }
   function currentReading() {
     const route = currentRoute();
     return route ? state?.reading?.[route] : undefined;
@@ -87,7 +137,8 @@
   async function publish() {
     // Always re-read course controls just before saving, even if the caller has
     // an older snapshot. This prevents most in-flight writes after a disable.
-    const cloud = await chrome.storage.sync.get(null);
+    await saveLocal(); // persist before accessing optional browser sync
+    const cloud = await getCloud(true);
     absorb(cloud);
     await saveLocal(); // local backup must survive even when cloud quota/rate limits fail
     const writes = {};
@@ -128,21 +179,31 @@
       if (state.disabled[course]) continue;
       const desired = S.actualAnswers(records);
       const key = S.keyOfCourse(course);
-      const current = S.sanitizeAnswers(localStorage.getItem(key));
-      if (S.stable(current) === S.stable(desired)) {
-        // Keep the observed baseline consistent after applying cloud records.
-        state.lastSite[course] = desired;
-        continue;
-      }
-      if (!initial && course === activePractice) {
+      const raw=localStorage.getItem(key), all=S.parseRecord(raw);
+      const current = S.sanitizeAnswers(all);
+      if (S.stable(current) !== S.stable(desired) && !initial && course === activePractice) {
         touchedActive = true;
         continue;
       }
-      localStorage.setItem(key, JSON.stringify(desired));
-      state.lastSite[course] = desired;
-      wrote = true;
-      if (course === activePractice) touchedActive = true;
+      const metaKey=S.progressMetaKey(key), metaRaw=localStorage.getItem(metaKey), meta=S.parseRecord(metaRaw);
+      for(const [id,r] of Object.entries(records)) {
+        // Do not erase an answer type the extension does not understand.
+        if(Object.hasOwn(all,id)&&!Object.hasOwn(current,id))continue;
+        if(r.v===null)delete all[id]; else all[id]=r.v;
+        meta[id]={t:r.t,r:r.v};
+      }
+      if(S.stable(S.parseRecord(metaRaw))!==S.stable(meta))
+        localStorage.setItem(metaKey,JSON.stringify(meta));
+      if(S.stable(current)!==S.stable(desired)) {
+        const value=JSON.stringify(all);
+        localStorage.setItem(key,value);
+        notifySite(key,raw,value);
+        wrote=true;
+        if(course===activePractice)touchedActive=true;
+      }
+      state.lastSite[course] = S.sanitizeAnswers(all);
     }
+    applyNativeReading();
     pending = !initial && touchedActive;
     return { wrote, changedActive: initial && touchedActive };
   }
@@ -151,7 +212,9 @@
     for (const [course, answers] of Object.entries(snapshot)) {
       if (state.disabled[course]) continue;
       const baseline = state.lastSite[course] || {};
-      const delta = S.changes(baseline, answers, state.deviceId, Date.now());
+      const delta = S.changes(baseline, answers, state.deviceId, countToday?Date.now():0);
+      const native=S.nativeProgress(localStorage.getItem(S.progressMetaKey(S.keyOfCourse(course))),answers,state.deviceId);
+      for(const id of Object.keys(delta))if(native[id])delta[id]=native[id];
       if (Object.keys(delta).length) {
         for(const [id,item] of Object.entries(delta)){
           if(item.v!==null) newlyAnswered.push(course+':'+id);
@@ -164,9 +227,12 @@
   }
   async function observe(skipRemote=false) {
     if (!state) return;
-    const cloud = await chrome.storage.sync.get(null);
+    const cloud = await getCloud();
     absorb(cloud); // controls first, before reading this device's site records
-    collectChanges(siteSnapshot());
+    const snapshot=siteSnapshot();
+    importNativeProgress(snapshot);
+    collectChanges(snapshot);
+    siteReading();
     writeCloudToSite();
     // Independent cloud sync must still run when the browser sync quota is full.
     let browserError;
@@ -192,33 +258,39 @@
     if(!force&&now-lastRemoteAttempt<5*60*1000)return;
     lastRemoteAttempt=now;
     try {
-      const cloud=await chrome.storage.sync.get(null);
+      const cloud=await getCloud();
       const result=await chrome.runtime.sendMessage({
         type:'REMOTE_EXCHANGE',manual:force,records:state.records,reading:state.reading,
         controls:remoteControlsForRequest(cloud)
       });
-      if(!result?.enabled)return; // Account cloud sync is opt-in.
-      if(!result.ok)throw new Error(result.error||'远程服务错误');
+      if(!result?.ok)throw new Error(result?.error||'远程服务错误');
+      if(!result.enabled){if(force)remoteError='尚未登录独立云账号';return;} // Account cloud sync is opt-in.
       if(result.skipped)return; // another tab already contacted the API recently
       state.remoteControls=result.controls||{};
       state.records=S.mergeAll(state.records,result.records||{});
       state.reading=S.mergeReading(state.reading,result.reading||{});
       absorb(cloud); // Remote disable flags must be applied before any site writes.
+      const snapshot=siteSnapshot();
+      importNativeProgress(snapshot); collectChanges(snapshot); siteReading();
       writeCloudToSite();
+      await saveLocal();
       try{await publish();}catch(err){
         console.warn('[HFUT Site Sync] Browser sync failed after independent cloud exchange:',err);
       }
       remoteError='';
+      remoteSynced=true;
     } catch(err) {
+      if(stopIfInvalid(err))return;
       remoteError=String(err?.message||err);
       console.warn('[HFUT Site Sync] Question-Bank 云同步：',remoteError);
     }
   }
   async function freshSync() {
     // Do not auto-exchange then immediately force another request on the same click.
-    await observe(true);
-    await remoteSync(true);
-    return { pending, error:lastError, remoteError };
+    remoteSynced=false; remoteError='';
+    try{await observe(true);}catch(err){if(stopIfInvalid(err))return;lastError=String(err?.message||err);}
+    if(!invalidated)await remoteSync(true);
+    return { pending, error:lastError, remoteError, remoteSynced };
   }
 
   function readingPosition(route) {
@@ -239,6 +311,10 @@
     const route = currentRoute();
     if (!state || !route || state.disabled[S.courseOfRoute(route)] || window.scrollY < 110) return;
     const now = Date.now();
+    if(S.nativeRoute(route)&&localStorage.getItem(S.NATIVE_READING_KEY)!==null){
+      // The upstream page writes after its own debounce; use its timestamp and precision.
+      await observe(); return;
+    }
     if (!force && now - lastReadingAt < 6500) return;
     const candidate = readingPosition(route);
     const prior = state.reading[route];
@@ -254,7 +330,8 @@
   function scheduleReading() {
     if (!currentRoute()) return;
     clearTimeout(readingTimer);
-    readingTimer = setTimeout(() => serial(() => recordReading()), 1100);
+    if(invalidated)return;
+    readingTimer = setTimeout(() => serial(() => recordReading()), 2200);
   }
   function resumeIfRequested() {
     if (!/[?&]hfut_sync_resume=1(?:&|$)/.test(location.hash)) return;
@@ -267,7 +344,8 @@
     const restore = () => {
       if (userMoved || currentRoute() !== route) return;
       // Reposition after React's normal mount / scroll-to-top effects have finished.
-      window.scrollTo({top:rec.y,behavior:'instant'});
+      const max=Math.max(0,document.documentElement.scrollHeight-window.innerHeight);
+      window.scrollTo({top:max>=240?Math.round(max*rec.percent/100):rec.y,behavior:'instant'});
     };
     setTimeout(restore, 350);
     setTimeout(restore, 950);
@@ -307,18 +385,17 @@
       }
       state.lastSite = snapshot;
     }
-    const cloud = await chrome.storage.sync.get(null);
+    const cloud = await getCloud();
     absorb(cloud);
+    importNativeProgress(snapshot); siteReading();
     const applied = writeCloudToSite({initial:true});
     try{await publish();}catch(err){
       console.warn('[HFUT Site Sync] Browser sync unavailable:',err);
     }
-    await remoteSync(); // independent cloud can work even if browser storage is full
     previousRoute = currentRoute();
     if (applied.changedActive) {
       // The React practice view may have read old results before asynchronous hydration.
       location.reload();
-      return;
     }
     chrome.storage.onChanged.addListener((changes,area) => {
       if (area !== 'sync' || !Object.keys(changes).some(k =>
@@ -334,7 +411,7 @@
             old[key] = val.oldValue;
           }
         }
-        const fresh = await chrome.storage.sync.get(null);
+        const fresh = await getCloud();
         const disabled = S.disabledCourses(fresh);
         const earlierQuiz = S.cloudQuiz(old);
         for (const course of Object.keys(earlierQuiz)) if (disabled[course]) delete earlierQuiz[course];
@@ -347,27 +424,7 @@
         await observe();
       });
     });
-    chrome.runtime.onMessage.addListener((m,_sender,respond) => {
-      if (m?.type === 'SYNC_NOW') {
-        serial(freshSync).then(()=>respond({ok:true,pending,error:lastError,remoteError}));
-        return true;
-      }
-      if (m?.type === 'REMOTE_SIGNOUT') {
-        serial(async()=>{
-          state.remoteControls={};
-          const cloud=await chrome.storage.sync.get(null);
-          absorb(cloud);
-          await saveLocal();
-        }).then(()=>respond({ok:true}));
-        return true;
-      }
-      if (m?.type === 'GET_STATUS') {
-        respond({ok:true,pending,error:lastError,route:currentRoute()});
-        return false;
-      }
-      return false;
-    });
-    setInterval(() => serial(observe), 3000);
+    intervals.push(setInterval(() => serial(observe), 3000));
     addEventListener('scroll',scheduleReading,{passive:true});
     addEventListener('hashchange',onRouteChange);
     addEventListener('pagehide',() => {
@@ -377,7 +434,26 @@
       if (document.visibilityState === 'hidden') serial(()=>recordReading(true));
       else serial(observe);
     });
+    initialized=true;
+    await remoteSync(); // independent cloud can work even if browser storage is full
     resumeIfRequested();
   }
+  // Register synchronously before storage reads or network calls, including cold startup.
+  chrome.runtime.onMessage.addListener((m,_sender,respond) => {
+    if(m?.type==='GET_STATUS'){respond({ok:true,ready:initialized,pending,error:lastError,route:currentRoute()});return false;}
+    if(m?.type==='SYNC_NOW'||m?.type==='REMOTE_SIGNOUT'){
+      serial(async()=>{
+        if(!initialized)await init();
+        if(m.type==='SYNC_NOW')await freshSync();
+        else {
+          state.remoteControls={};
+          absorb(await getCloud());
+          await saveLocal();
+        }
+      }).then(()=>respond({ok:initialized&&!invalidated,pending,error:lastError,remoteError,remoteSynced}));
+      return true;
+    }
+    return false;
+  });
   await serial(init);
 })();
