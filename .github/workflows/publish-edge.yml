@@ -1,0 +1,78 @@
+name: Publish to Microsoft Edge Add-ons
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: 'Submit to Edge for certification (select a release tag; false = build only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edge-store-publish
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify release ref and version
+        env:
+          SUBMIT: ${{ github.event_name == 'push' || inputs.submit }}
+        run: |
+          python - <<'PY'
+          import json, os, re
+          ref = os.environ["GITHUB_REF"]
+          version = json.load(open("manifest.json"))["version"]
+          if not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", version):
+              raise SystemExit("Invalid manifest version")
+          if ref.startswith("refs/tags/"):
+              if ref != "refs/tags/v" + version:
+                  raise SystemExit("Release tag must exactly match manifest version")
+          elif os.environ["SUBMIT"] == "true":
+              raise SystemExit("Select a release tag to submit; branch runs are build-only")
+          print("Validated version:", version)
+          PY
+          if [[ "$SUBMIT" == "true" ]]; then
+            git merge-base --is-ancestor HEAD origin/main || {
+              echo "::error::Release commit must be reachable from main"; exit 1;
+            }
+          fi
+
+  checks:
+    needs: validate
+    uses: ./.github/workflows/check.yml
+
+  submit:
+    if: ${{ github.event_name == 'push' || inputs.submit }}
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: Edge-Addons-Upload-Package
+          path: dist
+      - name: Recheck exact validated package
+        run: python scripts/verify_edge_package.py dist/*.zip
+      - name: Submit package for certification
+        env:
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+        run: python scripts/publish_edge.py dist/*.zip --tag "$GITHUB_REF_NAME"

@@ -13,6 +13,10 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 - Edge 桌面端和 Android Edge 手机／平板均已实测安装成功。**移动端能安装不代表能跨设备同步**；当前移动端浏览器同步限制见下方。
 - 需要使用同一个商店扩展 ID 和同一 Microsoft 同步账号进行跨电脑同步。直接从 GitHub 源码「加载已解压的扩展」可能产生与商店版不同的扩展 ID，二者的 `chrome.storage.sync` 数据不会自动互通。
 
+## Edge 商店自动发布
+
+正式版本标签（如 `v2.4.0`）触发完整测试、构建及 Microsoft Edge 商店审核提交。普通提交不会发布；手动运行默认仅验证构建。首次需要设置 Partner Center API 凭据，详见 [自动发布配置与操作说明](docs/edge-auto-publish.md)。
+
 ## v2.4.0：适配网站原生阅读进度与同步恢复
 
 - 兼容网站 2026-11-24 新增的 `hb-reading-v1`，双向转换页面路径、百分比和时间戳；历史扩展记录保留原有协议，按较新时间合并。
