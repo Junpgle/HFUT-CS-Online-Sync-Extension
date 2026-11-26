@@ -27,7 +27,7 @@ git tag v2.4.0
 git push origin v2.4.0
 ```
 
-版本标签必须与 manifest.json 完全相同，且指向 main 历史中的提交。标签推送会先运行完整测试、构建和独立校验，再使用同一次运行生成的 ZIP 向微软提交更新。普通 main 提交与 PR 不提交商店。
+版本标签必须与 manifest.json 完全相同，且指向 main 历史中的提交。标签推送会先运行完整测试、构建和独立校验，再使用同一次运行生成的 ZIP 向微软提交更新。普通 main 提交与 PR 不提交商店。另提供显式发布请求入口：在 main 中新增或修改 `release/edge-request.json`（`{"version":"2.4.0","submit":true}`），版本必须等于 manifest；仅该文件发生变更的 main 推送才触发发布。适用于无法创建标签的 GitHub API 客户端。同一个版本不要同时推送标签和修改发布请求，以免重复提交。
 
 也可在 Actions → Publish to Microsoft Edge Add-ons → Run workflow 选择标签，勾选 submit 后手动提交；不勾选则仅测试构建，不读取 Secrets 或调用微软接口。默认分支的手动运行只能测试构建。
 

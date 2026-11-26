@@ -15,7 +15,7 @@ https://saltgardenia.github.io/HFUT-CS-Online/
 
 ## Edge 商店自动发布
 
-正式版本标签（如 `v2.4.0`）触发完整测试、构建及 Microsoft Edge 商店审核提交。普通提交不会发布；手动运行默认仅验证构建。首次需要设置 Partner Center API 凭据，详见 [自动发布配置与操作说明](docs/edge-auto-publish.md)。
+正式版本标签（如 `v2.4.0`）触发完整测试、构建及 Microsoft Edge 商店审核提交。普通提交不会发布；显式更新 `release/edge-request.json` 也可在 main 中触发对应版本发布。手动运行默认仅验证构建。首次需要设置 Partner Center API 凭据，详见 [自动发布配置与操作说明](docs/edge-auto-publish.md)。
 
 ## v2.4.0：适配网站原生阅读进度与同步恢复
 

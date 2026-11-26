@@ -3,6 +3,8 @@ name: Publish to Microsoft Edge Add-ons
 on:
   push:
     tags: ['v*']
+    branches: [main]
+    paths: ['release/edge-request.json']
   workflow_dispatch:
     inputs:
       submit:
@@ -20,14 +22,18 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.version.outputs.release_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify release ref and version
+        id: version
         env:
           SUBMIT: ${{ github.event_name == 'push' || inputs.submit }}
+          EVENT: ${{ github.event_name }}
         run: |
           python - <<'PY'
           import json, os, re
@@ -39,7 +45,13 @@ jobs:
               if ref != "refs/tags/v" + version:
                   raise SystemExit("Release tag must exactly match manifest version")
           elif os.environ["SUBMIT"] == "true":
-              raise SystemExit("Select a release tag to submit; branch runs are build-only")
+              if ref != "refs/heads/main" or os.environ["EVENT"] != "push":
+                  raise SystemExit("Select a release tag to submit; manual branch runs are build-only")
+              request = json.load(open("release/edge-request.json"))
+              if request.get("version") != version or request.get("submit") is not True:
+                  raise SystemExit("Explicit release request must match manifest version")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("release_tag=v" + version + "\n")
           print("Validated version:", version)
           PY
           if [[ "$SUBMIT" == "true" ]]; then
@@ -54,7 +66,7 @@ jobs:
 
   submit:
     if: ${{ github.event_name == 'push' || inputs.submit }}
-    needs: checks
+    needs: [validate, checks]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -75,4 +87,5 @@ jobs:
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
           EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
           EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
-        run: python scripts/publish_edge.py dist/*.zip --tag "$GITHUB_REF_NAME"
+          RELEASE_TAG: ${{ needs.validate.outputs.release_tag }}
+        run: python scripts/publish_edge.py dist/*.zip --tag "$RELEASE_TAG"
